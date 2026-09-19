@@ -1,0 +1,5 @@
+#include <winres.h>
+#include "resource.h"
+
+IDR_PZSA_LUA_BRIDGE RCDATA "resources\\pztrainer-lua-bridge.jar"
+IDR_PZSA_BRAND_ICON RCDATA "resources\\pz_brand_icon.png"

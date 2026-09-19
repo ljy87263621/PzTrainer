@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{83596227-50B0-4B33-9CF1-47D7C7618094}</ProjectGuid>
+    <RootNamespace>pztrainer</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(MSBuildThisFileDirectory)..\bin\x64\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)..\obj\$(ProjectName)\x64\$(Configuration)\</IntDir>
+    <TargetName>pztrainer</TargetName>
+    <EnableVmProtectMarkers Condition="'$(EnableVmProtectMarkers)'==''">false</EnableVmProtectMarkers>
+    <VmProtectRoot Condition="'$(VmProtectRoot)'=='' and '$(VMP_ROOT)'!=''">$(VMP_ROOT)</VmProtectRoot>
+    <VmProtectDefines Condition="'$(EnableVmProtectMarkers)'=='true'">PZ_ENABLE_VMP_MARKERS;</VmProtectDefines>
+    <VmProtectLibraries Condition="'$(EnableVmProtectMarkers)'=='true'">VMProtectSDK64.lib;</VmProtectLibraries>
+    <VmProtectIncludePath Condition="'$(EnableVmProtectMarkers)'=='true'">$(VmProtectRoot)\Include\C;</VmProtectIncludePath>
+    <VmProtectLibraryPath Condition="'$(EnableVmProtectMarkers)'=='true'">$(VmProtectRoot)\Lib\Windows;</VmProtectLibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>$(VmProtectDefines)WIN32_LEAN_AND_MEAN;NOMINMAX;IMGUI_DISABLE_OBSOLETE_FUNCTIONS;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\protection;$(VmProtectIncludePath)$(MSBuildThisFileDirectory)src;$(MSBuildThisFileDirectory)third_party\imgui;$(MSBuildThisFileDirectory)third_party\minhook\include;$(MSBuildThisFileDirectory)third_party\openjdk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>$(VmProtectLibraries)opengl32.lib;gdi32.lib;user32.lib;dwmapi.lib;windowscodecs.lib;ole32.lib;shell32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VmProtectLibraryPath)%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\dllmain.cpp" />
+    <ClCompile Include="src\bridge\game_startup_gate.cpp" />
+    <ClCompile Include="src\bridge\jni_game_bridge.cpp" />
+    <ClCompile Include="src\bridge\experience_bridge.cpp" />
+    <ClCompile Include="src\bridge\endurance_compensation_bridge.cpp" />
+    <ClCompile Include="src\bridge\farming_mode_bridge.cpp" />
+    <ClCompile Include="src\bridge\free_build_bridge.cpp" />
+    <ClCompile Include="src\bridge\lua_script_bridge.cpp" />
+    <ClCompile Include="src\bridge\lua_feature_registry.cpp" />
+    <ClCompile Include="src\bridge\lua_ui_bridge.cpp" />
+    <ClCompile Include="src\bridge\maintenance_training_bridge.cpp" />
+      <ClCompile Include="src\bridge\item_bridge.cpp" />
+    <ClCompile Include="src\bridge\item_spawn_limiter.cpp" />
+    <ClCompile Include="src\bridge\ammo_item_bridge.cpp" />
+    <ClCompile Include="src\bridge\magazine_item_bridge.cpp" />
+    <ClCompile Include="src\bridge\explosive_trap_item_bridge.cpp" />
+    <ClCompile Include="src\bridge\pallet_item_bridge.cpp" />
+    <ClCompile Include="src\bridge\corpse_item_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_ammo_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_weapon_reliability_bridge.cpp" />
+    <ClCompile Include="src\bridge\multi_hit_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_effect_bridge.cpp" />
+    <ClCompile Include="src\bridge\server_player_effect_bridge.cpp" />
+    <ClCompile Include="src\bridge\timed_action_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_health_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_carry_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_condition_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_movement_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_movement_state_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_teleport_bridge.cpp" />
+    <ClCompile Include="src\bridge\world_map_reveal_bridge.cpp" />
+    <ClCompile Include="src\bridge\world_map_player_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_resource_bridge.cpp" />
+    <ClCompile Include="src\bridge\world_visual_bridge.cpp" />
+    <ClCompile Include="src\bridge\world_visibility_render_bridge.cpp" />
+      <ClCompile Include="src\bridge\main_thread_invoker.cpp" />
+    <ClCompile Include="src\bridge\model_outline_bridge.cpp" />
+    <ClCompile Include="src\bridge\trap_item_bridge.cpp" />
+    <ClCompile Include="src\features\aim\aim_settings.cpp" />
+    <ClCompile Include="src\features\aim\aim_target_point.cpp" />
+    <ClCompile Include="src\features\aim\legit_aim.cpp" />
+    <ClCompile Include="src\features\aim\magic_bullet_hit_list.cpp" />
+    <ClCompile Include="src\features\aim\rage_ballistics_hook.cpp" />
+    <ClCompile Include="src\features\aim\rage_aim.cpp" />
+    <ClCompile Include="src\features\visual\native_model_chams.cpp" />
+    <ClCompile Include="src\features\visual\animal_esp.cpp" />
+    <ClCompile Include="src\features\visual\animal_visual_settings.cpp" />
+    <ClCompile Include="src\features\visual\direction_indicator.cpp" />
+    <ClCompile Include="src\features\visual\player_esp.cpp" />
+    <ClCompile Include="src\features\visual\player_visual_settings.cpp" />
+    <ClCompile Include="src\features\visual\vehicle_esp.cpp" />
+    <ClCompile Include="src\features\visual\vehicle_visual_settings.cpp" />
+    <ClCompile Include="src\features\visual\visual_settings.cpp" />
+    <ClCompile Include="src\features\visual\weapon_ray.cpp" />
+    <ClCompile Include="src\features\visual\zombie_model_effect.cpp" />
+    <ClCompile Include="src\features\visual\zombie_esp.cpp" />
+    <ClCompile Include="src\runtime\overlay_runtime.cpp" />
+    <ClCompile Include="src\runtime\lua_bridge_resource.cpp" />
+    <ClCompile Include="src\settings\configuration_store.cpp" />
+    <ClCompile Include="src\settings\localization.cpp" />
+    <ClCompile Include="src\settings\ui_preferences.cpp" />
+    <ClCompile Include="src\ui\animation.cpp" />
+    <ClCompile Include="src\ui\animated_dropdown.cpp" />
+    <ClCompile Include="src\ui\animation_dropdown.cpp" />
+    <ClCompile Include="src\ui\aim_target_selector.cpp" />
+    <ClCompile Include="src\ui\aimbot_page.cpp" />
+    <ClCompile Include="src\ui\animal_preview.cpp" />
+    <ClCompile Include="src\ui\color_picker.cpp" />
+    <ClCompile Include="src\ui\character_status.cpp" />
+    <ClCompile Include="src\ui\brand_icon.cpp" />
+    <ClCompile Include="src\ui\components.cpp" />
+    <ClCompile Include="src\ui\experience_editor.cpp" />
+    <ClCompile Include="src\ui\game_asset_mesh.cpp" />
+    <ClCompile Include="src\ui\game_zombie_mesh.cpp" />
+    <ClCompile Include="src\ui\glass_blur.cpp" />
+    <ClCompile Include="src\ui\corpse_payload_panel.cpp" />
+    <ClCompile Include="src\ui\item_generator.cpp" />
+    <ClCompile Include="src\ui\item_generator_text.cpp" />
+    <ClCompile Include="src\ui\lua_page.cpp" />
+    <ClCompile Include="src\ui\lua_item_multiselect.cpp" />
+    <ClCompile Include="src\ui\menu_burn_reveal.cpp" />
+    <ClCompile Include="src\ui\menu_hotkey_selector.cpp" />
+    <ClCompile Include="src\ui\menu_startup_animation.cpp" />
+    <ClCompile Include="src\ui\player_effect_editor.cpp" />
+    <ClCompile Include="src\ui\settings_page.cpp" />
+    <ClCompile Include="src\ui\steam_profile_card.cpp" />
+    <ClCompile Include="src\ui\player_preview.cpp" />
+    <ClCompile Include="src\ui\vehicle_preview.cpp" />
+    <ClCompile Include="src\ui\model_effect_controls.cpp" />
+    <ClCompile Include="src\ui\navigation.cpp" />
+    <ClCompile Include="src\ui\theme.cpp" />
+    <ClCompile Include="src\ui\teleport_cooldown_overlay.cpp" />
+    <ClCompile Include="src\ui\trainer_menu.cpp" />
+    <ClCompile Include="src\ui\world_visual.cpp" />
+    <ClCompile Include="src\ui\zombie_preview.cpp" />
+    <ClCompile Include="third_party\imgui\imgui.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_draw.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_tables.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="third_party\imgui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="third_party\imgui\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="third_party\minhook\src\buffer.c" />
+    <ClCompile Include="third_party\minhook\src\hook.c" />
+    <ClCompile Include="third_party\minhook\src\trampoline.c" />
+    <ClCompile Include="third_party\minhook\src\hde\hde64.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\runtime\lua_bridge_resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="protection\vmprotect.hpp" />
+    <ClInclude Include="src\bridge\game_snapshot.hpp" />
+    <ClInclude Include="src\bridge\game_startup_gate.hpp" />
+    <ClInclude Include="src\bridge\jni_game_bridge.hpp" />
+    <ClInclude Include="src\bridge\experience_bridge.hpp" />
+    <ClInclude Include="src\bridge\endurance_compensation_bridge.hpp" />
+    <ClInclude Include="src\bridge\farming_mode_bridge.hpp" />
+    <ClInclude Include="src\bridge\free_build_bridge.hpp" />
+    <ClInclude Include="src\bridge\lua_script_bridge.hpp" />
+    <ClInclude Include="src\bridge\lua_feature_registry.hpp" />
+    <ClInclude Include="src\bridge\lua_configuration.hpp" />
+    <ClInclude Include="src\bridge\lua_ui_bridge.hpp" />
+    <ClInclude Include="src\bridge\maintenance_training_bridge.hpp" />
+      <ClInclude Include="src\bridge\item_bridge.hpp" />
+    <ClInclude Include="src\bridge\item_spawn_limiter.hpp" />
+    <ClInclude Include="src\bridge\ammo_item_bridge.hpp" />
+    <ClInclude Include="src\bridge\magazine_item_bridge.hpp" />
+    <ClInclude Include="src\bridge\explosive_trap_item_bridge.hpp" />
+    <ClInclude Include="src\bridge\pallet_item_bridge.hpp" />
+    <ClInclude Include="src\bridge\corpse_item_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_ammo_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_weapon_reliability_bridge.hpp" />
+    <ClInclude Include="src\bridge\multi_hit_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_effect_bridge.hpp" />
+    <ClInclude Include="src\bridge\server_player_effect_bridge.hpp" />
+    <ClInclude Include="src\bridge\timed_action_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_health_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_carry_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_condition_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_movement_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_movement_state_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_teleport_bridge.hpp" />
+    <ClInclude Include="src\bridge\world_map_reveal_bridge.hpp" />
+    <ClInclude Include="src\bridge\world_map_player_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_resource_bridge.hpp" />
+    <ClInclude Include="src\bridge\world_visual_bridge.hpp" />
+    <ClInclude Include="src\bridge\world_visibility_render_bridge.hpp" />
+      <ClInclude Include="src\bridge\main_thread_invoker.hpp" />
+    <ClInclude Include="src\bridge\model_outline_bridge.hpp" />
+    <ClInclude Include="src\bridge\trap_item_bridge.hpp" />
+    <ClInclude Include="src\features\aim\aim_settings.hpp" />
+    <ClInclude Include="src\features\aim\aim_target_point.hpp" />
+    <ClInclude Include="src\features\aim\legit_aim.hpp" />
+    <ClInclude Include="src\features\aim\magic_bullet_hit_list.hpp" />
+    <ClInclude Include="src\features\aim\rage_ballistics_hook.hpp" />
+    <ClInclude Include="src\features\aim\rage_aim.hpp" />
+    <ClInclude Include="src\features\visual\native_model_chams.hpp" />
+    <ClInclude Include="src\features\visual\animal_esp.hpp" />
+    <ClInclude Include="src\features\visual\animal_visual_settings.hpp" />
+    <ClInclude Include="src\features\visual\direction_indicator.hpp" />
+    <ClInclude Include="src\features\visual\player_esp.hpp" />
+    <ClInclude Include="src\features\visual\player_visual_settings.hpp" />
+    <ClInclude Include="src\features\visual\vehicle_esp.hpp" />
+    <ClInclude Include="src\features\visual\vehicle_visual_settings.hpp" />
+    <ClInclude Include="src\features\visual\visual_settings.hpp" />
+    <ClInclude Include="src\features\visual\weapon_ray.hpp" />
+    <ClInclude Include="src\features\visual\zombie_model_effect.hpp" />
+    <ClInclude Include="src\features\visual\zombie_esp.hpp" />
+    <ClInclude Include="src\runtime\overlay_runtime.hpp" />
+    <ClInclude Include="src\runtime\lua_bridge_resource.hpp" />
+    <ClInclude Include="src\settings\configuration_store.hpp" />
+    <ClInclude Include="src\settings\localization.hpp" />
+    <ClInclude Include="src\settings\ui_preferences.hpp" />
+    <ClInclude Include="src\ui\animation.hpp" />
+    <ClInclude Include="src\ui\animated_dropdown.hpp" />
+    <ClInclude Include="src\ui\animation_dropdown.hpp" />
+    <ClInclude Include="src\ui\aim_target_selector.hpp" />
+    <ClInclude Include="src\ui\aimbot_page.hpp" />
+    <ClInclude Include="src\ui\animal_preview.hpp" />
+    <ClInclude Include="src\ui\color_picker.hpp" />
+    <ClInclude Include="src\ui\character_status.hpp" />
+    <ClInclude Include="src\ui\brand_icon.hpp" />
+    <ClInclude Include="src\ui\components.hpp" />
+    <ClInclude Include="src\ui\experience_editor.hpp" />
+    <ClInclude Include="src\ui\game_asset_mesh.hpp" />
+    <ClInclude Include="src\ui\game_zombie_mesh.hpp" />
+    <ClInclude Include="src\ui\glass_blur.hpp" />
+    <ClInclude Include="src\ui\corpse_payload_panel.hpp" />
+    <ClInclude Include="src\ui\item_generator.hpp" />
+    <ClInclude Include="src\ui\item_generator_text.hpp" />
+    <ClInclude Include="src\ui\lua_page.hpp" />
+    <ClInclude Include="src\ui\lua_item_multiselect.hpp" />
+    <ClInclude Include="src\ui\menu_burn_reveal.hpp" />
+    <ClInclude Include="src\ui\menu_hotkey_selector.hpp" />
+    <ClInclude Include="src\ui\menu_startup_animation.hpp" />
+    <ClInclude Include="src\ui\player_effect_editor.hpp" />
+    <ClInclude Include="src\ui\settings_page.hpp" />
+    <ClInclude Include="src\ui\steam_profile_card.hpp" />
+    <ClInclude Include="src\ui\player_preview.hpp" />
+    <ClInclude Include="src\ui\vehicle_preview.hpp" />
+    <ClInclude Include="src\ui\model_effect_controls.hpp" />
+    <ClInclude Include="src\ui\navigation.hpp" />
+    <ClInclude Include="src\ui\theme.hpp" />
+    <ClInclude Include="src\ui\teleport_cooldown_overlay.hpp" />
+    <ClInclude Include="src\ui\trainer_menu.hpp" />
+    <ClInclude Include="src\ui\world_visual.hpp" />
+    <ClInclude Include="src\ui\zombie_preview.hpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

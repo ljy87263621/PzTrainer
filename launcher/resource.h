@@ -1,0 +1,5 @@
+#pragma once
+
+#define IDR_PZTRAINER_DLL 101
+#define IDI_PZTRAINER_APP 102
+#define IDR_PZTRAINER_LOGO_PNG 103

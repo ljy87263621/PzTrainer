@@ -1,0 +1,4 @@
+#pragma once
+
+#define IDR_PZSA_LUA_BRIDGE 101
+#define IDR_PZSA_BRAND_ICON 102

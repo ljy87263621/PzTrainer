@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{B3532AD7-43CC-4C05-8BDE-9FE7C76CA3F8}</ProjectGuid>
+    <RootNamespace>pztrainer_launcher</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(MSBuildThisFileDirectory)bin\x64\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)obj\$(ProjectName)\x64\$(Configuration)\</IntDir>
+    <TargetName>pztrainer_launcher</TargetName>
+    <VmProtectRoot Condition="'$(VmProtectRoot)'=='' and '$(VMP_ROOT)'!=''">$(VMP_ROOT)</VmProtectRoot>
+    <VmProtectIncludePath Condition="'$(EnableVmProtectMarkers)'=='true'">$(VmProtectRoot)\Include\C;</VmProtectIncludePath>
+    <VmProtectLibraryPath Condition="'$(EnableVmProtectMarkers)'=='true'">$(VmProtectRoot)\Lib\Windows;</VmProtectLibraryPath>
+    <VmProtectDefines Condition="'$(EnableVmProtectMarkers)'=='true'">PZ_ENABLE_VMP_MARKERS;</VmProtectDefines>
+    <VmProtectLibraries Condition="'$(EnableVmProtectMarkers)'=='true'">VMProtectSDK64.lib;</VmProtectLibraries>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>$(VmProtectDefines)WIN32_LEAN_AND_MEAN;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)protection;$(VmProtectIncludePath)%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+      <UACUIAccess>false</UACUIAccess>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>$(VmProtectLibraries)d2d1.lib;dwrite.lib;dwmapi.lib;shell32.lib;ole32.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VmProtectLibraryPath)%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="launcher\injector.cpp" />
+    <ClCompile Include="launcher\manual_mapper.cpp">
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <SDLCheck>false</SDLCheck>
+    </ClCompile>
+    <ClCompile Include="launcher\main.cpp" />
+    <ClCompile Include="launcher\ui\resource_bitmap.cpp" />
+    <ClCompile Include="launcher\ui\launcher_window.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="protection\vmprotect.hpp" />
+    <ClInclude Include="launcher\injector.hpp" />
+    <ClInclude Include="launcher\manual_mapper.hpp" />
+    <ClInclude Include="launcher\resource.h" />
+    <ClInclude Include="launcher\ui\animation.hpp" />
+    <ClInclude Include="launcher\ui\launcher_window.hpp" />
+    <ClInclude Include="launcher\ui\localization.hpp" />
+    <ClInclude Include="launcher\ui\resource_bitmap.hpp" />
+    <ClInclude Include="launcher\ui\theme.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="launcher\launcher_resources.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="trainer\pztrainer.vcxproj">
+      <Project>{83596227-50B0-4B33-9CF1-47D7C7618094}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

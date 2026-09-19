@@ -1,0 +1,5 @@
+#include "resource.h"
+
+IDR_PZTRAINER_DLL RCDATA "..\\bin\\x64\\Release\\pztrainer.dll"
+IDI_PZTRAINER_APP ICON "assets\\PZicon.ico"
+IDR_PZTRAINER_LOGO_PNG RCDATA "assets\\PZicon.png"
