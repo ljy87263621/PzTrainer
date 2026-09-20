@@ -19,6 +19,7 @@ struct PlayerHealthStatus {
     bool infinite_health_enabled = false;
     bool invincibility_enabled = false;
     bool invincibility_available = false;
+    std::string invincibility_message = "等待无敌模式接口初始化";
     int last_restored_parts = 0;
     std::uint64_t restore_count = 0;
     std::uint64_t server_sync_count = 0;

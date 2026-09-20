@@ -9,6 +9,7 @@ enum class Icon {
     Mouse,
     Eye,
     World,
+    Vehicle,
     User,
     Package,
     Spark,

@@ -27,6 +27,7 @@
 #include "bridge/timed_action_bridge.hpp"
 #include "bridge/lua_script_bridge.hpp"
 #include "bridge/lua_feature_registry.hpp"
+#include "bridge/extension_bridge.hpp"
 #include "bridge/lua_ui_bridge.hpp"
 #include "bridge/main_thread_invoker.hpp"
 #include "bridge/player_health_bridge.hpp"
@@ -569,7 +570,6 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             bridge::UpdateExperienceBridge();
             bridge::UpdateServerPlayerEffectBridge();
             bridge::UpdatePlayerEffectBridge();
-            bridge::UpdatePlayerHealthBridge();
             bridge::UpdatePlayerResourceBridge();
             bridge::UpdatePlayerAmmoBridge();
             bridge::UpdatePlayerWeaponReliabilityBridge();
@@ -616,6 +616,8 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
         bridge::RefreshItemCatalog();
         bridge::RefreshLuaFeatureRegistry();
         bridge::UpdateLuaScriptBridge();
+        bridge::UpdateExtensionBridge(g_menu_visible.load());
+        bridge::UpdatePlayerHealthBridge();
         bridge::UpdatePlayerMovementBridge();
         bridge::UpdatePlayerCarryBridge();
         bridge::UpdatePlayerConditionBridge();

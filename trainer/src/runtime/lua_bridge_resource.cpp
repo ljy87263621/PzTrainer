@@ -116,6 +116,7 @@ std::string DigestText(const Sha256Digest& digest) {
 
 bool ReadResource(
     HMODULE module,
+    int resource_id,
     const void*& bytes,
     DWORD& size,
     std::string& error) {
@@ -124,7 +125,7 @@ bool ReadResource(
         return false;
     }
     HRSRC resource = FindResourceW(
-        module, MAKEINTRESOURCEW(IDR_PZSA_LUA_BRIDGE), MAKEINTRESOURCEW(10));
+        module, MAKEINTRESOURCEW(resource_id), MAKEINTRESOURCEW(10));
     if (resource == nullptr) {
         error = "Embedded Lua bridge resource is missing.";
         return false;
@@ -139,17 +140,11 @@ bool ReadResource(
     return true;
 }
 
-}  // namespace
-
-void SetLuaBridgeResourceModule(HMODULE module) {
-    g_resource_module = module;
-}
-
-std::filesystem::path EnsureLuaBridgeJar(std::string& error) {
+std::filesystem::path EnsureBridgeJar(int resource_id, const wchar_t* filename, std::string& error) {
     PZ_VMP_BEGIN_ULTRA("PZ.DLL.LuaBridgeCache");
     const void* bytes = nullptr;
     DWORD size = 0;
-    if (!ReadResource(g_resource_module, bytes, size, error)) return {};
+    if (!ReadResource(g_resource_module, resource_id, bytes, size, error)) return {};
 
     wchar_t temporary_root[MAX_PATH]{};
     const DWORD temporary_length = GetTempPathW(MAX_PATH, temporary_root);
@@ -167,7 +162,7 @@ std::filesystem::path EnsureLuaBridgeJar(std::string& error) {
     const std::filesystem::path directory =
         std::filesystem::path(temporary_root) / L"PZSoloAssist" / L"cache" /
         std::filesystem::path(hash);
-    const std::filesystem::path target = directory / L"pztrainer-lua-bridge.jar";
+    const std::filesystem::path target = directory / filename;
     std::error_code filesystem_error;
     std::filesystem::create_directories(directory, filesystem_error);
     if (filesystem_error) {
@@ -220,6 +215,20 @@ std::filesystem::path EnsureLuaBridgeJar(std::string& error) {
     }
     PZ_VMP_END();
     return target;
+}
+
+}  // namespace
+
+void SetLuaBridgeResourceModule(HMODULE module) {
+    g_resource_module = module;
+}
+
+std::filesystem::path EnsureLuaBridgeJar(std::string& error) {
+    return EnsureBridgeJar(IDR_PZSA_LUA_BRIDGE, L"pztrainer-lua-bridge.jar", error);
+}
+
+std::filesystem::path EnsurePlayerOverridesJar(std::string& error) {
+    return EnsureBridgeJar(IDR_PZSA_PLAYER_OVERRIDES, L"pztrainer-player-overrides.jar", error);
 }
 
 }  // namespace pztrainer::runtime

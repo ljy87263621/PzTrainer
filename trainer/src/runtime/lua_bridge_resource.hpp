@@ -12,5 +12,7 @@ namespace pztrainer::runtime {
 // pass to a URLClassLoader. An empty path means the resource could not be read.
 void SetLuaBridgeResourceModule(HMODULE module);
 std::filesystem::path EnsureLuaBridgeJar(std::string& error);
+// Only this JAR may be appended to the system class loader used by game classes.
+std::filesystem::path EnsurePlayerOverridesJar(std::string& error);
 
 }  // namespace pztrainer::runtime

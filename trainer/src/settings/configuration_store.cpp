@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "bridge/lua_script_bridge.hpp"
+#include "bridge/extension_bridge.hpp"
 #include "bridge/farming_mode_bridge.hpp"
 #include "bridge/free_build_bridge.hpp"
 #include "bridge/multi_hit_bridge.hpp"
@@ -36,7 +37,7 @@ namespace pztrainer::settings {
 namespace {
 
 constexpr std::array<char, 8> kMagic{'P', 'Z', 'C', 'F', 'G', '0', '1', '\0'};
-constexpr std::uint32_t kVersion = 15;
+constexpr std::uint32_t kVersion = 16;
 constexpr std::uint32_t kTargetPointMask = (1u << 15) - 1u;
 constexpr std::uint32_t kMaximumLuaScripts = 256;
 constexpr std::uint32_t kMaximumLuaControls = 4096;
@@ -974,7 +975,9 @@ bool SaveConfiguration(const std::string& name, std::string& error) {
     }
     output.write(reinterpret_cast<const char*>(&header), sizeof(header));
     output.write(reinterpret_cast<const char*>(&payload), sizeof(payload));
-    if (!output || !WriteLuaConfiguration(output, lua_configuration)) {
+    const bridge::ExtensionOptions extensions = bridge::GetExtensionOptions();
+    if (!output || !WriteLuaConfiguration(output, lua_configuration) ||
+        !WriteValue(output, extensions.flags) || !WriteValue(output, extensions.kill_range)) {
         error = "Unable to write configuration file.";
         return false;
     }
@@ -997,12 +1000,20 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
     }
     ConfigurationPayload payload{};
     std::vector<bridge::LuaScriptConfiguration> lua_configuration;
+    bridge::ExtensionOptions extensions;
     bool has_lua_configuration = false;
-    if (header.version == kVersion &&
+    if ((header.version == kVersion || header.version == 15) &&
         header.payload_size == sizeof(ConfigurationPayload)) {
         input.read(reinterpret_cast<char*>(&payload), sizeof(payload));
         has_lua_configuration = input &&
             ReadLuaConfiguration(input, lua_configuration, true, true);
+        if (header.version == kVersion &&
+            (!ReadValue(input, extensions.flags) || !ReadValue(input, extensions.kill_range) ||
+             extensions.flags < 0 || extensions.flags > 2047 ||
+             extensions.kill_range < 1 || extensions.kill_range > 30)) {
+            error = "Extension configuration is invalid or incomplete.";
+            return false;
+        }
     } else if ((header.version == 14 || header.version == 13 ||
                 header.version == 12 || header.version == 11) &&
         header.payload_size == sizeof(ConfigurationPayloadV14)) {
@@ -1076,7 +1087,7 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         return false;
     }
     if (!input ||
-        ((header.version == kVersion || header.version == 14 ||
+        ((header.version == kVersion || header.version == 15 || header.version == 14 ||
           header.version == 13 || header.version == 12 || header.version == 11 ||
           header.version == 10 ||
           header.version == 9 ||
@@ -1104,6 +1115,7 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         payload.world.show_map_players = false;
     }
     ApplyConfiguration(payload);
+    bridge::GetExtensionOptions() = extensions;
     if (has_lua_configuration) {
         bridge::ApplyLuaScriptConfiguration(std::move(lua_configuration));
     }

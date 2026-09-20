@@ -52,6 +52,8 @@ struct LuaUiCategory {
 
 // Registers the PZSA Lua namespace and updates the native UI model.
 bool EnsureLuaUiApi(JNIEnv* env, std::string& error);
+// Returns a local class reference from the embedded bridge's class loader.
+jclass LoadEmbeddedJavaClass(JNIEnv* env, const char* name, std::string& error);
 jobject CreateLuaUtf8Reader(JNIEnv* env, jstring source, std::string& error);
 void SetLuaUiRegistrationOwner(const std::string& owner_script);
 std::vector<LuaControlConfiguration> CaptureLuaUiConfiguration(
