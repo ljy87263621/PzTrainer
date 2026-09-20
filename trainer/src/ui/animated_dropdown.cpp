@@ -7,6 +7,7 @@
 #include "settings/ui_preferences.hpp"
 #include "ui/animation.hpp"
 #include "ui/components.hpp"
+#include "ui/controls/action_controls.hpp"
 
 namespace pztrainer::ui {
 namespace {
@@ -139,7 +140,7 @@ bool BeginAnimatedDropdownPopup(ImGuiID id, const ImVec2& anchor_minimum,
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNav |
-        ImGuiWindowFlags_NoFocusOnAppearing;
+        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar;
     ImGui::Begin(window_name, nullptr, flags);
 
     g_current_state = &state;
@@ -207,6 +208,7 @@ void CloseAnimatedDropdown() {
 
 void EndAnimatedDropdown() {
     if (g_current_state == nullptr) return;
+    controls::ScrollRail();
     if (g_current_disabled) ImGui::EndDisabled();
     ImGui::End();
     ImGui::PopStyleColor(2);

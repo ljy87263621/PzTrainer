@@ -16,6 +16,8 @@
 #include "bridge/timed_action_bridge.hpp"
 #include "settings/localization.hpp"
 #include "ui/components.hpp"
+#include "ui/controls/action_controls.hpp"
+#include "ui/extensions/extension_controls.hpp"
 #include "ui/player_effect_editor.hpp"
 
 namespace pztrainer::ui {
@@ -69,12 +71,15 @@ void DrawCharacterStatus() {
                 "无敌模式", &invincibility, false)) {
             bridge::SetInvincibilityEnabled(invincibility);
         }
+        if (ImGui::IsItemHovered()) components::RoundedTooltip(status.invincibility_message.c_str());
     } else {
         components::CompactDisabledToggleRow(
-            "无敌模式", false,
-            "该功能在线不可用。进入联机后会自动关闭，只保留全身快速恢复与服务器伤势同步。",
+            "无敌模式", status.invincibility_enabled,
+            status.invincibility_message.c_str(),
             true);
     }
+    if (status.session_mode == bridge::PlayerHealthSessionMode::MultiplayerClient && !status.invincibility_available)
+        controls::Hint(status.invincibility_message.c_str());
 
     if (movement_status.no_clip_available) {
         bool no_clip = movement_status.no_clip_enabled;
@@ -104,11 +109,11 @@ void DrawCharacterStatus() {
         ImGui::EndGroup();
         if (ImGui::IsItemHovered()) {
             components::RoundedTooltip(
-                "启用后，最大负重等于游戏当前原版最大负重乘以此倍率。倍率不会逐帧重复叠加；联机同步只在目标整数变化时发送。");
+                "启用后解除人物主背包容量限制，最大负重按原版数值乘以此倍率，不会重复叠加。联机定期同步，关闭后恢复原版。");
         }
     } else {
         components::CompactDisabledToggleRow(
-            "无限负重", false, "无限负重桥接尚未初始化。",
+            "无限负重", false, carry_status.message.c_str(),
             false);
     }
     if (condition_status.fatigue_available) {
@@ -184,6 +189,8 @@ void DrawCharacterStatus() {
             "免疫感染/咬伤", false, "当前会话没有可用的伤势同步路径。"
         );
     }
+    extensions::Toggle("无肌肉酸痛", 16);
+    extensions::Toggle("隐身", 256);
     bool map_teleport = teleport_status.enabled;
     if (components::CompactToggleRow(
             "地图点击传送", &map_teleport, false)) {
@@ -203,6 +210,14 @@ void DrawCharacterStatus() {
                 "%s", settings::Translate(teleport_status.message.c_str()));
         }
     }
+    components::EndCard();
+
+    ImGui::Dummy(ImVec2(0.0f, 10.0f));
+    components::SectionLabel("武器强化");
+    components::BeginCompactCard("WeaponEnhancements", nullptr, ImVec2(0, 0));
+    extensions::Toggle("暴击率 100% / 额外伤害", 1);
+    extensions::Toggle("近战最小攻击距离为零", 2);
+    controls::Hint("作用于当前主手武器；换武器或关闭后恢复原属性。");
     components::EndCard();
 
     ImGui::TableSetColumnIndex(1);
@@ -243,6 +258,15 @@ void DrawCharacterStatus() {
             "仅对当前主手远程枪械生效。开启时把原版卡壳概率临时设为 0；切枪或关闭后恢复该枪原值。若枪械已经卡壳，会清除状态并通过 SyncHandWeaponFields 同步服务器。不会修改弹药、射速、装填或耐久，普通联机账号可用。"
         );
     }
+    components::EndCard();
+
+    ImGui::Dummy(ImVec2(0.0f, 10.0f));
+    components::SectionLabel("装备维护");
+    components::BeginCompactCard("InventoryMaintenance", nullptr, ImVec2(0, 0));
+    extensions::Toggle("自动修复背包及子背包", 4);
+    extensions::Toggle("修复并清洁穿戴衣物", 8);
+    extensions::Action("给背包中的水桶补水", "buckets");
+    controls::Hint("补水跳过含其他液体的桶。");
     components::EndCard();
 
     ImGui::Dummy(ImVec2(0.0f, 10.0f));
@@ -315,6 +339,7 @@ void DrawCharacterStatus() {
     }
     components::EndCard();
 
+    extensions::Status();
     ImGui::EndTable();
     ImGui::PopStyleVar();
 

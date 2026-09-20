@@ -24,6 +24,9 @@
 #include "ui/components.hpp"
 #include "ui/corpse_payload_panel.hpp"
 #include "ui/experience_editor.hpp"
+#include "ui/creation/character_creation_page.hpp"
+#include "ui/vehicle/vehicle_control_page.hpp"
+#include "ui/world/world_interaction_page.hpp"
 #include "ui/glass_blur.hpp"
 #include "ui/item_generator.hpp"
 #include "ui/lua_page.hpp"
@@ -58,6 +61,9 @@ enum class Page {
     Character,
     Items,
     Experience,
+    VehicleControl,
+    WorldInteraction,
+    CharacterCreation,
     Lua,
     LuaRegistered,
     Settings,
@@ -76,14 +82,17 @@ struct SearchResult {
     int visual_category = -1;
 };
 
-constexpr std::array<SearchEntry, 9> kSearchEntries{{
+constexpr std::array<SearchEntry, 12> kSearchEntries{{
     {"Rage", "rage 暴力自瞄 自动瞄准 自动开枪 静默瞄准", Page::Rage},
     {"Legit", "legit 辅助瞄准 平滑 精度", Page::Legit},
     {"视觉 ESP", "视觉 esp 僵尸 玩家 动物 载具 透视 方框 骨骼", Page::Visual},
     {"世界视觉", "世界视觉 伪白天 暗区 天气 雾 地图迷雾 降水 枪口射线", Page::WorldVisual},
-    {"角色状态", "角色状态 无限生命 无敌 穿墙 地图传送 体力 耐久 子弹 状态效果", Page::Character},
+    {"角色状态", "角色状态 无限生命 无敌 穿墙 地图传送 体力 耐久 子弹 状态效果 暴击 近战 背包 修复 衣物 肌肉 隐身 水桶", Page::Character},
     {"物品生成", "物品生成 道具 武器 弹药", Page::Items},
     {"技能经验", "技能经验 熟练度 等级 xp", Page::Experience},
+    {"载具控制", "载具 车辆 引擎 修复 汽油 传送 无碰撞 即停 Instant", Page::VehicleControl},
+    {"世界交互", "世界 僵尸 AI 击杀 尸体 容器 战利品 动物 名字 音效 格子 门窗 解锁 碎玻璃 点火 投掷物", Page::WorldInteraction},
+    {"角色创建", "角色创建 职业 特质 出生 地点 存档 种子 姓名 性别 发型 颜色 胡须 肤色 声音 音调 服装 纹理 预设 技能", Page::CharacterCreation},
     {"Lua", "lua 脚本 加载 重载 卸载", Page::Lua},
     {"设置", "设置 配置 选项", Page::Settings},
 }};
@@ -131,6 +140,9 @@ const char* PageTitle() {
         case Page::Character: return settings::Translate("角色状态");
         case Page::Items: return settings::Translate("物品生成");
         case Page::Experience: return settings::Translate("技能经验");
+        case Page::VehicleControl: return settings::Translate("载具控制");
+        case Page::WorldInteraction: return settings::Translate("世界交互");
+        case Page::CharacterCreation: return settings::Translate("角色创建");
         case Page::Lua: return "Lua";
         case Page::LuaRegistered: return g_lua_page_title.c_str();
         case Page::Settings: return settings::Translate("设置");
@@ -210,6 +222,8 @@ void DrawSidebar() {
     ImGui::PopStyleColor();
     ImGui::EndGroup();
 
+    ImGui::BeginChild("SidebarNavigation", ImVec2(0, ImGui::GetContentRegionAvail().y - U(76)),
+        ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     ImGui::Dummy(ImVec2(0.0f, U(18.0f)));
     DrawSidebarSectionLabel("自瞄");
     ImGui::Dummy(ImVec2(0.0f, 2.0f));
@@ -227,7 +241,7 @@ void DrawSidebar() {
     navigation::EndGroup();
 
     ImGui::Dummy(ImVec2(0.0f, U(11.0f)));
-    DrawSidebarSectionLabel("常用");
+    DrawSidebarSectionLabel("角色");
     ImGui::Dummy(ImVec2(0.0f, 2.0f));
     const std::vector<bridge::LuaUiCategory> lua_categories =
         bridge::SnapshotLuaUiCategories();
@@ -236,11 +250,23 @@ void DrawSidebar() {
         [](const bridge::LuaUiCategory& category) {
             return !category.standalone;
         }));
-    navigation::BeginGroup(
-        "CommonNavigation", 5 + integrated_lua_category_count);
+    navigation::BeginGroup("CharacterNavigation", 4);
     SidebarNav("角色状态", navigation::Icon::User, Page::Character);
     SidebarNav("物品生成", navigation::Icon::Package, Page::Items);
     SidebarNav("技能经验", navigation::Icon::Spark, Page::Experience);
+    SidebarNav("角色创建", navigation::Icon::User, Page::CharacterCreation);
+    navigation::EndGroup();
+
+    ImGui::Dummy(ImVec2(0, U(11)));
+    DrawSidebarSectionLabel("世界");
+    navigation::BeginGroup("WorldNavigation", 2);
+    SidebarNav("载具控制", navigation::Icon::Vehicle, Page::VehicleControl);
+    SidebarNav("世界交互", navigation::Icon::World, Page::WorldInteraction);
+    navigation::EndGroup();
+
+    ImGui::Dummy(ImVec2(0, U(11)));
+    DrawSidebarSectionLabel("工具");
+    navigation::BeginGroup("ToolsNavigation", 2 + integrated_lua_category_count);
     SidebarNav("Lua", navigation::Icon::Lua, Page::Lua);
     for (const bridge::LuaUiCategory& category : lua_categories) {
         if (category.standalone) continue;
@@ -260,6 +286,7 @@ void DrawSidebar() {
     }
     SidebarNav("设置", navigation::Icon::Settings, Page::Settings);
     navigation::EndGroup();
+    ImGui::EndChild();
 
     ImGui::SetCursorPosY(std::max(
         ImGui::GetCursorPosY() + U(11.0f),
@@ -321,6 +348,20 @@ bool ResolveFeatureSearchDestination(
     } else if (feature.group == "character") {
         page = Page::Character;
         section = "角色状态";
+    } else if (feature.group == "extensions") {
+        if (feature.path == "extensions.engine_running" || feature.path == "extensions.vehicle_instant") {
+            page = Page::VehicleControl;
+            section = "载具控制";
+        } else if (feature.path == "extensions.passive_zombies" ||
+                   feature.path == "extensions.useless_zombies" ||
+                   feature.path == "extensions.instant_kill" ||
+                   feature.path == "extensions.kill_range") {
+            page = Page::WorldInteraction;
+            section = "世界交互";
+        } else {
+            page = Page::Character;
+            section = "角色状态";
+        }
     } else {
         return false;
     }
@@ -743,12 +784,11 @@ void DrawVisualPage() {
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
     DrawVisualControls();
-    ImGui::TableSetColumnIndex(1);
-    DrawPlayerVisualControls();
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
+    ImGui::Dummy(ImVec2(0.0f, U(8.0f)));
     DrawAnimalVisualControls();
     ImGui::TableSetColumnIndex(1);
+    DrawPlayerVisualControls();
+    ImGui::Dummy(ImVec2(0.0f, U(8.0f)));
     DrawVehicleVisualControls();
     ImGui::EndTable();
     ImGui::PopStyleVar();
@@ -792,6 +832,9 @@ void DrawContent(const bridge::FrameSnapshot& frame) {
         case Page::Character: DrawCharacterStatus(); break;
         case Page::Items: DrawItemGenerator(frame); break;
         case Page::Experience: DrawExperienceEditor(); break;
+        case Page::VehicleControl: DrawVehicleControlPage(); break;
+        case Page::WorldInteraction: DrawWorldInteractionPage(); break;
+        case Page::CharacterCreation: DrawCharacterCreationPage(); break;
         case Page::Lua: DrawLuaPage(); break;
         case Page::LuaRegistered:
             bridge::DrawLuaCategoryPage(bridge::SelectedLuaUiCategory());

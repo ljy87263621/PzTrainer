@@ -63,6 +63,19 @@
     <ClCompile Include="src\bridge\farming_mode_bridge.cpp" />
     <ClCompile Include="src\bridge\free_build_bridge.cpp" />
     <ClCompile Include="src\bridge\lua_script_bridge.cpp" />
+    <ClCompile Include="src\bridge\extension_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_overrides.cpp" />
+    <ClCompile Include="src\features\vehicle\bullet_vehicle_ghost.cpp">
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+    <ClCompile Include="src\features\vehicle\vehicle_physics_bridge.cpp">
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+    <ClCompile Include="src\ui\controls\action_controls.cpp" />
+    <ClCompile Include="src\ui\extensions\extension_controls.cpp" />
+    <ClCompile Include="src\ui\creation\character_creation_page.cpp" />
+    <ClCompile Include="src\ui\vehicle\vehicle_control_page.cpp" />
+    <ClCompile Include="src\ui\world\world_interaction_page.cpp" />
     <ClCompile Include="src\bridge\lua_feature_registry.cpp" />
     <ClCompile Include="src\bridge\lua_ui_bridge.cpp" />
     <ClCompile Include="src\bridge\maintenance_training_bridge.cpp" />
@@ -260,6 +273,16 @@
     <ClInclude Include="src\ui\theme.hpp" />
     <ClInclude Include="src\ui\teleport_cooldown_overlay.hpp" />
     <ClInclude Include="src\ui\trainer_menu.hpp" />
+    <ClInclude Include="src\bridge\extension_bridge.hpp" />
+    <ClInclude Include="src\bridge\player_overrides.hpp" />
+    <ClInclude Include="src\features\vehicle\bullet_vehicle_ghost.h" />
+    <ClInclude Include="src\features\vehicle\vehicle_physics_bridge.hpp" />
+    <ClInclude Include="src\ui\controls\action_controls.hpp" />
+    <ClInclude Include="src\ui\controls\card_layout.hpp" />
+    <ClInclude Include="src\ui\extensions\extension_controls.hpp" />
+    <ClInclude Include="src\ui\creation\character_creation_page.hpp" />
+    <ClInclude Include="src\ui\vehicle\vehicle_control_page.hpp" />
+    <ClInclude Include="src\ui\world\world_interaction_page.hpp" />
     <ClInclude Include="src\ui\world_visual.hpp" />
     <ClInclude Include="src\ui\zombie_preview.hpp" />
   </ItemGroup>

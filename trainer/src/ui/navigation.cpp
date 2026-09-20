@@ -73,6 +73,18 @@ void DrawIcon(ImDrawList* draw, Icon icon, const ImVec2& center, ImU32 color) {
             draw->AddLine(ImVec2(center.x - U(5.0f), center.y + U(3.4f)),
                           ImVec2(center.x + U(5.0f), center.y + U(3.4f)), color, thickness);
             break;
+        case Icon::Vehicle:
+            draw->AddRect(ImVec2(center.x - U(7), center.y - U(2)),
+                          ImVec2(center.x + U(7), center.y + U(4)), color, U(2), 0, thickness);
+            draw->AddLine(ImVec2(center.x - U(5), center.y - U(2)),
+                          ImVec2(center.x - U(3), center.y - U(6)), color, thickness);
+            draw->AddLine(ImVec2(center.x - U(3), center.y - U(6)),
+                          ImVec2(center.x + U(3), center.y - U(6)), color, thickness);
+            draw->AddLine(ImVec2(center.x + U(3), center.y - U(6)),
+                          ImVec2(center.x + U(5), center.y - U(2)), color, thickness);
+            draw->AddCircleFilled(ImVec2(center.x - U(4), center.y + U(5)), U(2), color);
+            draw->AddCircleFilled(ImVec2(center.x + U(4), center.y + U(5)), U(2), color);
+            break;
         case Icon::User:
             draw->AddCircle(
                 ImVec2(center.x, center.y - U(4.0f)), U(3.2f),

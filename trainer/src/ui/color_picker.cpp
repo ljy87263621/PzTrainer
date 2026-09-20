@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "ui/animation.hpp"
+#include "ui/controls/action_controls.hpp"
 #include "ui/glass_blur.hpp"
 
 namespace pztrainer::ui {
@@ -246,15 +247,13 @@ void DrawNumericValues(PickerState& picker) {
     int alpha = static_cast<int>(std::round(picker.alpha * 255.0f));
     ImGui::TextUnformatted("HSV");
     ImGui::SameLine(53.0f);
-    ImGui::PushItemWidth(43.0f);
-    bool changed = ImGui::DragInt("##HueValue", &hue, 1.0f, 0, 359, "%d", ImGuiSliderFlags_AlwaysClamp);
+    bool changed = controls::IntegerField("HueValue", &hue, 0, 359, 43.0f);
     ImGui::SameLine();
-    changed |= ImGui::DragInt("##SaturationValue", &saturation, 1.0f, 0, 255, "%d", ImGuiSliderFlags_AlwaysClamp);
+    changed |= controls::IntegerField("SaturationValue", &saturation, 0, 255, 43.0f);
     ImGui::SameLine();
-    changed |= ImGui::DragInt("##BrightnessValue", &value, 1.0f, 0, 255, "%d", ImGuiSliderFlags_AlwaysClamp);
+    changed |= controls::IntegerField("BrightnessValue", &value, 0, 255, 43.0f);
     ImGui::SameLine();
-    changed |= ImGui::DragInt("##AlphaValue", &alpha, 1.0f, 0, 255, "%d", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::PopItemWidth();
+    changed |= controls::IntegerField("AlphaValue", &alpha, 0, 255, 43.0f);
     if (changed) {
         picker.hue = static_cast<float>(hue) / 359.0f;
         picker.saturation = static_cast<float>(saturation) / 255.0f;

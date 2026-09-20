@@ -7,6 +7,7 @@
 #include <string>
 
 #include "bridge/jni_game_bridge.hpp"
+#include "bridge/player_overrides.hpp"
 
 namespace pztrainer::bridge {
 namespace {
@@ -40,8 +41,11 @@ PlayerHealthStatus g_status;
 bool g_infinite_health_requested = false;
 bool g_invincibility_requested = false;
 bool g_invincibility_applied = false;
+jobject g_invincibility_player = nullptr;
 bool g_previous_god_mode = false;
 bool g_previous_avoid_damage = false;
+jclass g_connection = nullptr;
+jmethodID g_configure_connection = nullptr;
 std::chrono::steady_clock::time_point g_last_server_sync{};
 
 bool ClearException(JNIEnv* env) {
@@ -148,6 +152,7 @@ PlayerHealthSessionMode ReadSessionMode(JNIEnv* env) {
 
 void RemoveInvincibility(JNIEnv* env, jobject player) {
     if (!g_invincibility_applied) return;
+    if (g_invincibility_player) player = g_invincibility_player;
     env->CallVoidMethod(
         player, g_bindings.set_god_mode,
         g_previous_god_mode ? JNI_TRUE : JNI_FALSE, JNI_TRUE);
@@ -156,15 +161,20 @@ void RemoveInvincibility(JNIEnv* env, jobject player) {
         g_previous_avoid_damage ? JNI_TRUE : JNI_FALSE);
     ClearException(env);
     g_invincibility_applied = false;
+    if (g_invincibility_player) env->DeleteGlobalRef(g_invincibility_player);
+    g_invincibility_player = nullptr;
 }
 
 void ApplyInvincibility(JNIEnv* env, jobject player) {
+    if (g_invincibility_player && !env->IsSameObject(g_invincibility_player, player)) RemoveInvincibility(env, g_invincibility_player);
     if (!g_invincibility_applied) {
         g_previous_god_mode =
             env->CallBooleanMethod(player, g_bindings.is_god_mode) == JNI_TRUE;
         g_previous_avoid_damage =
             env->CallBooleanMethod(player, g_bindings.avoid_damage) == JNI_TRUE;
         if (ClearException(env)) return;
+        g_invincibility_player = env->NewGlobalRef(player);
+        if (!g_invincibility_player || ClearException(env)) return;
         g_invincibility_applied = true;
     }
     env->CallVoidMethod(player, g_bindings.set_god_mode, JNI_TRUE, JNI_TRUE);
@@ -206,13 +216,27 @@ void UpdatePlayerHealthBridge() {
     g_status.initialized = true;
     g_status.session_mode = ReadSessionMode(env);
     const bool local = g_status.session_mode == PlayerHealthSessionMode::Local;
-    g_status.invincibility_available = local;
-    if (!local) g_invincibility_requested = false;
+    int connection_state = 0;
+    if (!g_connection) {
+        jclass helper = LoadPlayerOverrideClass(env, "pztrainer.player.GodModeConnection", g_status.invincibility_message);
+        if (helper) {
+            g_configure_connection = env->GetStaticMethodID(helper, "configure", "(Z)I");
+            if (!ClearException(env) && g_configure_connection) g_connection = static_cast<jclass>(env->NewGlobalRef(helper));
+            env->DeleteLocalRef(helper);
+        }
+    }
+    if (g_connection) {
+        connection_state = env->CallStaticIntMethod(g_connection, g_configure_connection, g_invincibility_requested ? JNI_TRUE : JNI_FALSE);
+        if (ClearException(env)) connection_state = 0;
+        g_status.invincibility_message = PlayerOverrideMessage(env, g_connection);
+    }
+    g_status.invincibility_available = g_connection && (connection_state & 1) != 0;
+    g_status.invincibility_enabled = (connection_state & 2) != 0;
 
     jobject player = env->CallStaticObjectMethod(g_bindings.iso_player, g_bindings.get_player);
     if (player == nullptr || ClearException(env)) {
+        RemoveInvincibility(env, g_invincibility_player);
         g_status.player_ready = false;
-        g_status.invincibility_enabled = false;
         g_status.message = "等待进入存档并创建玩家";
         if (player != nullptr) env->DeleteLocalRef(player);
         return;
@@ -224,7 +248,7 @@ void UpdatePlayerHealthBridge() {
     } else {
         RemoveInvincibility(env, player);
     }
-    g_status.invincibility_enabled = g_invincibility_applied && local;
+    if (local) g_status.invincibility_enabled = g_invincibility_requested;
 
     if (!g_infinite_health_requested) {
         g_status.last_restored_parts = 0;
@@ -286,7 +310,8 @@ void SetInfiniteHealthEnabled(bool enabled) {
 }
 
 void SetInvincibilityEnabled(bool enabled) {
-    g_invincibility_requested = enabled && g_status.invincibility_available;
+    // Configuration may be loaded before the JVM bridge is ready.
+    if (!g_status.initialized || g_status.invincibility_available) g_invincibility_requested = enabled;
 }
 
 }  // namespace pztrainer::bridge

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "bridge/player_ammo_bridge.hpp"
+#include "bridge/extension_bridge.hpp"
 #include "bridge/player_carry_bridge.hpp"
 #include "bridge/player_condition_bridge.hpp"
 #include "bridge/player_health_bridge.hpp"
@@ -472,7 +473,7 @@ void AddBridgeFeatures(std::vector<Entry>& entries) {
         &SetInvincibilityEnabled,
         [] {
             const auto& status = GetPlayerHealthStatus();
-            return AvailableWhen(status.invincibility_available, status.message);
+            return AvailableWhen(status.invincibility_available, status.invincibility_message);
         });
     AddBoolCallback(
         entries, "character.no_clip", "character", "人物穿墙",
@@ -674,6 +675,27 @@ std::vector<Entry> BuildEntries() {
     AddAimFeatures(entries);
     AddVisualFeatures(entries);
     AddBridgeFeatures(entries);
+    struct ExtensionFlag { const char* path; const char* label; int flag; };
+    constexpr ExtensionFlag extension_flags[]{
+        {"critical_hit", "暴击增强", 1}, {"minimum_melee_distance", "近战零最小距离", 2},
+        {"inventory_repair", "背包自动修复", 4}, {"clothing_repair", "穿戴衣物修复", 8},
+        {"no_muscle_strain", "无肌肉酸痛", 16}, {"passive_zombies", "僵尸不攻击", 32},
+        {"useless_zombies", "停用僵尸 AI", 64}, {"instant_kill", "范围击杀僵尸", 128},
+        {"invisible", "隐身", 256}, {"engine_running", "保持引擎运行", 512},
+        {"vehicle_instant", "车辆物理 Instant", 1024},
+    };
+    for (const auto& feature : extension_flags) {
+        const int flag = feature.flag;
+        AddBoolCallback(entries, std::string("extensions.") + feature.path,
+            "extensions", feature.label,
+            [flag] { return (GetExtensionOptions().flags & flag) != 0; },
+            [flag](bool enabled) {
+                if (enabled) GetExtensionOptions().flags |= flag;
+                else GetExtensionOptions().flags &= ~flag;
+            });
+    }
+    AddInteger(entries, "extensions.kill_range", "extensions", "击杀半径（30 为全部已加载）",
+        &GetExtensionOptions().kill_range, 1, 30, 1);
     std::sort(
         entries.begin(), entries.end(),
         [](const Entry& left, const Entry& right) {

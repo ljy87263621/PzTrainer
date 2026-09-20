@@ -1079,6 +1079,36 @@ bool EnsureLuaUiApi(JNIEnv* env, std::string& error) {
     return true;
 }
 
+jclass LoadEmbeddedJavaClass(JNIEnv* env, const char* name, std::string& error) {
+    if (!EnsureLuaUiApi(env, error)) return nullptr;
+    jclass class_type = env->FindClass("java/lang/Class");
+    jclass loader_type = env->FindClass("java/lang/ClassLoader");
+    if (ClearException(env) || class_type == nullptr || loader_type == nullptr) {
+        if (class_type != nullptr) env->DeleteLocalRef(class_type);
+        if (loader_type != nullptr) env->DeleteLocalRef(loader_type);
+        return nullptr;
+    }
+    const jmethodID get_loader = env->GetMethodID(
+        class_type, "getClassLoader", "()Ljava/lang/ClassLoader;");
+    const jmethodID load = env->GetMethodID(
+        loader_type, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+    env->DeleteLocalRef(class_type);
+    env->DeleteLocalRef(loader_type);
+    if (ClearException(env) || get_loader == nullptr || load == nullptr) return nullptr;
+    jobject loader = env->CallObjectMethod(g_bindings.bridge_class, get_loader);
+    jstring java_name = env->NewStringUTF(name);
+    jclass result = loader == nullptr || java_name == nullptr || ClearException(env)
+        ? nullptr : static_cast<jclass>(env->CallObjectMethod(loader, load, java_name));
+    if (loader != nullptr) env->DeleteLocalRef(loader);
+    if (java_name != nullptr) env->DeleteLocalRef(java_name);
+    if (ClearException(env)) {
+        if (result != nullptr) env->DeleteLocalRef(result);
+        error = "Unable to load embedded extension class";
+        return nullptr;
+    }
+    return result;
+}
+
 jobject CreateLuaUtf8Reader(JNIEnv* env, jstring source, std::string& error) {
     if (env == nullptr || source == nullptr || !g_bindings.registered ||
         g_bindings.utf8_reader_class == nullptr ||
