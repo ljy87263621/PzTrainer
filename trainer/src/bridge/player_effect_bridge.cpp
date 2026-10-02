@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "bridge/jni_game_bridge.hpp"
+#include "bridge/server_role_capability.hpp"
 
 namespace pztrainer::bridge {
 namespace {
@@ -26,6 +27,7 @@ struct Bindings {
     jclass character_stat = nullptr;
     jclass role = nullptr;
     jclass capability = nullptr;
+    jclass udp_connection = nullptr;
     jclass packet_type = nullptr;
     jclass network_packet = nullptr;
     jclass sync_player_stats_packet = nullptr;
@@ -35,10 +37,13 @@ struct Bindings {
     jfieldID server_flag = nullptr;
     jfieldID ordered_stats = nullptr;
     jfieldID can_modify_body_stats = nullptr;
+    jfieldID game_client_connection = nullptr;
+    jfieldID connection_is_coop_host = nullptr;
     jfieldID sync_player_stats = nullptr;
     jmethodID get_player = nullptr;
     jmethodID get_stats = nullptr;
-    jmethodID get_role = nullptr;
+    jmethodID player_get_role = nullptr;
+    jmethodID connection_get_role = nullptr;
     jmethodID role_has_capability = nullptr;
     jmethodID stats_get = nullptr;
     jmethodID stats_set = nullptr;
@@ -80,6 +85,9 @@ Bindings g_bindings;
 PlayerEffectStatus g_status;
 std::vector<InternalEntry> g_internal_entries;
 std::chrono::steady_clock::time_point g_next_refresh{};
+bool g_client_role_capability = false;
+bool g_connection_role_capability = false;
+bool g_coop_host = false;
 
 bool ClearException(JNIEnv* env) {
     if (!env->ExceptionCheck()) return false;
@@ -159,6 +167,7 @@ bool Initialize(JNIEnv* env) {
     g_bindings.character_stat = LoadGlobalClass(env, "zombie/characters/CharacterStat");
     g_bindings.role = LoadGlobalClass(env, "zombie/characters/Role");
     g_bindings.capability = LoadGlobalClass(env, "zombie/characters/Capability");
+    g_bindings.udp_connection = LoadGlobalClass(env, "zombie/core/raknet/UdpConnection");
     g_bindings.packet_type = LoadGlobalClass(env, "zombie/network/PacketTypes$PacketType");
     g_bindings.network_packet = LoadGlobalClass(env, "zombie/network/packets/INetworkPacket");
     g_bindings.sync_player_stats_packet = LoadGlobalClass(
@@ -168,7 +177,8 @@ bool Initialize(JNIEnv* env) {
     if (g_bindings.game_client == nullptr || g_bindings.game_server == nullptr ||
         g_bindings.iso_player == nullptr || g_bindings.stats == nullptr ||
         g_bindings.character_stat == nullptr || g_bindings.role == nullptr ||
-        g_bindings.capability == nullptr || g_bindings.packet_type == nullptr ||
+        g_bindings.capability == nullptr || g_bindings.udp_connection == nullptr ||
+        g_bindings.packet_type == nullptr ||
         g_bindings.network_packet == nullptr ||
         g_bindings.sync_player_stats_packet == nullptr ||
         g_bindings.integer == nullptr || g_bindings.object == nullptr) {
@@ -181,14 +191,20 @@ bool Initialize(JNIEnv* env) {
         g_bindings.character_stat, "ORDERED_STATS", "[Lzombie/characters/CharacterStat;");
     g_bindings.can_modify_body_stats = env->GetStaticFieldID(
         g_bindings.capability, "CanModifyBodyStats", "Lzombie/characters/Capability;");
+    g_bindings.game_client_connection = env->GetStaticFieldID(
+        g_bindings.game_client, "connection", "Lzombie/core/raknet/UdpConnection;");
+    g_bindings.connection_is_coop_host = env->GetFieldID(
+        g_bindings.udp_connection, "isCoopHost", "Z");
     g_bindings.sync_player_stats = env->GetStaticFieldID(
         g_bindings.packet_type, "SyncPlayerStats", "Lzombie/network/PacketTypes$PacketType;");
     g_bindings.get_player = env->GetStaticMethodID(
         g_bindings.iso_player, "getInstance", "()Lzombie/characters/IsoPlayer;");
     g_bindings.get_stats = env->GetMethodID(
         g_bindings.iso_player, "getStats", "()Lzombie/characters/Stats;");
-    g_bindings.get_role = env->GetMethodID(
+    g_bindings.player_get_role = env->GetMethodID(
         g_bindings.iso_player, "getRole", "()Lzombie/characters/Role;");
+    g_bindings.connection_get_role = env->GetMethodID(
+        g_bindings.udp_connection, "getRole", "()Lzombie/characters/Role;");
     g_bindings.role_has_capability = env->GetMethodID(
         g_bindings.role, "hasCapability", "(Lzombie/characters/Capability;)Z");
     g_bindings.stats_get = env->GetMethodID(
@@ -249,9 +265,13 @@ bool Initialize(JNIEnv* env) {
         g_bindings.client_flag != nullptr && g_bindings.server_flag != nullptr &&
         g_bindings.ordered_stats != nullptr &&
         g_bindings.can_modify_body_stats != nullptr &&
+        g_bindings.game_client_connection != nullptr &&
+        g_bindings.connection_is_coop_host != nullptr &&
         g_bindings.sync_player_stats != nullptr &&
         g_bindings.get_player != nullptr && g_bindings.get_stats != nullptr &&
-        g_bindings.get_role != nullptr && g_bindings.role_has_capability != nullptr &&
+        g_bindings.player_get_role != nullptr &&
+        g_bindings.connection_get_role != nullptr &&
+        g_bindings.role_has_capability != nullptr &&
         g_bindings.stats_get != nullptr &&
         g_bindings.stats_set != nullptr && g_bindings.stats_reset != nullptr &&
         g_bindings.stat_get_id != nullptr && g_bindings.stat_get_minimum != nullptr &&
@@ -266,8 +286,11 @@ PlayerEffectSessionMode DetectSessionMode(JNIEnv* env) {
         g_bindings.game_client, g_bindings.client_flag) == JNI_TRUE;
     const bool server = env->GetStaticBooleanField(
         g_bindings.game_server, g_bindings.server_flag) == JNI_TRUE;
-    if (server) return PlayerEffectSessionMode::DedicatedServer;
+    // A listen-server host runs both the client and server sides in one JVM.
+    // The client side owns the UI and submits SyncPlayerStats; the server flag
+    // must not classify that session as a dedicated server before this branch.
     if (client) return PlayerEffectSessionMode::MultiplayerClient;
+    if (server) return PlayerEffectSessionMode::DedicatedServer;
     return PlayerEffectSessionMode::Local;
 }
 
@@ -379,22 +402,53 @@ jobject GetPlayer(JNIEnv* env) {
 
 bool HasServerStatSyncCapability(JNIEnv* env, jobject player) {
     if (g_status.session_mode != PlayerEffectSessionMode::MultiplayerClient) {
+        g_client_role_capability = false;
+        g_connection_role_capability = false;
+        g_coop_host = false;
         return false;
     }
-    jobject role = env->CallObjectMethod(player, g_bindings.get_role);
+    g_client_role_capability = false;
+    g_connection_role_capability = false;
+    g_coop_host = false;
     jobject capability = env->GetStaticObjectField(
         g_bindings.capability, g_bindings.can_modify_body_stats);
-    if (role == nullptr || capability == nullptr || ClearException(env)) {
-        if (role != nullptr) env->DeleteLocalRef(role);
-        if (capability != nullptr) env->DeleteLocalRef(capability);
-        return false;
+    jobject player_role = player == nullptr ? nullptr : env->CallObjectMethod(
+        player, g_bindings.player_get_role);
+    jobject connection = env->GetStaticObjectField(
+        g_bindings.game_client, g_bindings.game_client_connection);
+    jobject connection_role = connection == nullptr ? nullptr : env->CallObjectMethod(
+        connection, g_bindings.connection_get_role);
+    bool coop_host = false;
+    if (!ClearException(env) && player_role != nullptr && capability != nullptr) {
+        g_client_role_capability = env->CallBooleanMethod(
+            player_role, g_bindings.role_has_capability, capability) == JNI_TRUE;
+        if (ClearException(env)) g_client_role_capability = false;
     }
-    const bool available = env->CallBooleanMethod(
-        role, g_bindings.role_has_capability, capability) == JNI_TRUE;
-    const bool failed = ClearException(env);
-    env->DeleteLocalRef(capability);
-    env->DeleteLocalRef(role);
-    return available && !failed;
+    if (!ClearException(env) && connection_role != nullptr && capability != nullptr) {
+        g_connection_role_capability = env->CallBooleanMethod(
+            connection_role, g_bindings.role_has_capability, capability) == JNI_TRUE;
+        if (ClearException(env)) g_connection_role_capability = false;
+    }
+    if (!ClearException(env) && connection != nullptr) {
+        coop_host = env->GetBooleanField(
+            connection, g_bindings.connection_is_coop_host) == JNI_TRUE;
+        if (ClearException(env)) coop_host = false;
+    }
+    g_coop_host = coop_host;
+
+    // The vanilla Lua gate reads IsoPlayer.role, while PacketAuthorization on
+    // the server reads UdpConnection.role. Access-level changes in a
+    // listen-server session can leave those mirrors out of sync. The native
+    // bridge still sends only SyncPlayerStats; the server remains authoritative
+    // and can reject it, so use any valid client-side mirror to avoid hiding a
+    // control from an admin whose connection role is already authorized.
+    const bool available = HasClientBodyStatsCapability(
+        g_client_role_capability, g_connection_role_capability, coop_host);
+    if (player_role != nullptr) env->DeleteLocalRef(player_role);
+    if (capability != nullptr) env->DeleteLocalRef(capability);
+    if (connection_role != nullptr) env->DeleteLocalRef(connection_role);
+    if (connection != nullptr) env->DeleteLocalRef(connection);
+    return available;
 }
 
 bool SendPlayerStatSync(JNIEnv* env, jobject player, jobject stat) {
@@ -465,7 +519,18 @@ void UpdatePlayerEffectBridge() {
             g_status.message = "单机原生状态编辑已启用";
         } else if (mode == PlayerEffectSessionMode::MultiplayerClient &&
                    g_status.server_stat_sync_available) {
-            g_status.message = "联机属性可通过原生 SyncPlayerStats 同步";
+            if (g_connection_role_capability && !g_client_role_capability) {
+                g_status.message =
+                    "联机连接角色具备 CanModifyBodyStats；玩家角色镜像尚未同步，按服务器连接权限提交 SyncPlayerStats";
+            } else if (g_client_role_capability && !g_connection_role_capability) {
+                g_status.message =
+                    "联机玩家角色具备 CanModifyBodyStats；连接角色镜像尚未同步，仍按原版菜单发送并由服务器最终校验";
+            } else if (g_coop_host) {
+                g_status.message =
+                    "联机主机具备 SyncPlayerStats 主机旁路；服务器仍会执行最终校验";
+            } else {
+                g_status.message = "联机属性可通过原生 SyncPlayerStats 同步";
+            }
         } else if (mode == PlayerEffectSessionMode::MultiplayerClient) {
             g_status.message = "联机属性仅在本地客户端生效；当前角色无服务器同步权限";
         } else {

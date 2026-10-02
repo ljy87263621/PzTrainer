@@ -15,6 +15,7 @@
 #include "bridge/jni_game_bridge.hpp"
 #include "bridge/main_thread_invoker.hpp"
 #include "bridge/maintenance_training_bridge.hpp"
+#include "bridge/packet_audit.hpp"
 
 namespace pztrainer::bridge {
 namespace {
@@ -83,8 +84,11 @@ struct Bindings {
     jclass lua_return = nullptr;
     jclass object = nullptr;
     jclass number = nullptr;
+    jclass network_packet = nullptr;
+    jclass packet_type = nullptr;
     jfieldID client_flag = nullptr;
     jfieldID server_flag = nullptr;
+    jfieldID player_xp_type = nullptr;
     jmethodID get_player = nullptr;
     jmethodID get_current_square = nullptr;
     jmethodID get_xp = nullptr;
@@ -119,6 +123,7 @@ struct Bindings {
     jmethodID lua_return_is_success = nullptr;
     jmethodID lua_return_get_first = nullptr;
     jmethodID number_int_value = nullptr;
+    jmethodID network_packet_send = nullptr;
 };
 
 struct InternalSkill {
@@ -197,6 +202,10 @@ bool Initialize(JNIEnv* env) {
         env, "se/krka/kahlua/integration/LuaReturn");
     g_bindings.object = LoadGlobalClass(env, "java/lang/Object");
     g_bindings.number = LoadGlobalClass(env, "java/lang/Number");
+    g_bindings.network_packet = LoadGlobalClass(
+        env, "zombie/network/packets/INetworkPacket");
+    g_bindings.packet_type = LoadGlobalClass(
+        env, "zombie/network/PacketTypes$PacketType");
     if (g_bindings.game_client == nullptr || g_bindings.game_server == nullptr ||
         g_bindings.iso_player == nullptr || g_bindings.xp == nullptr ||
         g_bindings.perks == nullptr || g_bindings.perk == nullptr ||
@@ -204,12 +213,16 @@ bool Initialize(JNIEnv* env) {
         g_bindings.device_data == nullptr || g_bindings.array_list == nullptr ||
         g_bindings.lua_manager == nullptr || g_bindings.kahlua_table == nullptr ||
         g_bindings.lua_caller == nullptr || g_bindings.lua_return == nullptr ||
-        g_bindings.object == nullptr || g_bindings.number == nullptr) {
+        g_bindings.object == nullptr || g_bindings.number == nullptr ||
+        g_bindings.network_packet == nullptr || g_bindings.packet_type == nullptr) {
         return false;
     }
 
     g_bindings.client_flag = env->GetStaticFieldID(g_bindings.game_client, "client", "Z");
     g_bindings.server_flag = env->GetStaticFieldID(g_bindings.game_server, "server", "Z");
+    g_bindings.player_xp_type = env->GetStaticFieldID(
+        g_bindings.packet_type, "PlayerXp",
+        "Lzombie/network/PacketTypes$PacketType;");
     g_bindings.get_player = env->GetStaticMethodID(
         g_bindings.iso_player, "getInstance", "()Lzombie/characters/IsoPlayer;");
     g_bindings.get_current_square = env->GetMethodID(
@@ -269,9 +282,13 @@ bool Initialize(JNIEnv* env) {
         g_bindings.lua_return, "getFirst", "()Ljava/lang/Object;");
     g_bindings.number_int_value = env->GetMethodID(
         g_bindings.number, "intValue", "()I");
+    g_bindings.network_packet_send = env->GetStaticMethodID(
+        g_bindings.network_packet, "send",
+        "(Lzombie/network/PacketTypes$PacketType;[Ljava/lang/Object;)V");
 
     g_bindings.ready = !ClearException(env) && g_bindings.client_flag != nullptr &&
         g_bindings.server_flag != nullptr && g_bindings.get_player != nullptr &&
+        g_bindings.player_xp_type != nullptr &&
         g_bindings.get_current_square != nullptr && g_bindings.get_xp != nullptr &&
         g_bindings.get_perk_level != nullptr &&
         g_bindings.get_x != nullptr && g_bindings.get_y != nullptr &&
@@ -291,7 +308,8 @@ bool Initialize(JNIEnv* env) {
         g_bindings.lua_caller_field != nullptr && g_bindings.lua_thread_field != nullptr &&
         g_bindings.lua_return_is_success != nullptr &&
         g_bindings.lua_return_get_first != nullptr &&
-        g_bindings.number_int_value != nullptr;
+        g_bindings.number_int_value != nullptr &&
+        g_bindings.network_packet_send != nullptr;
     return g_bindings.ready;
 }
 
@@ -303,6 +321,34 @@ ExperienceSessionMode DetectSessionMode(JNIEnv* env) {
     if (server) return ExperienceSessionMode::DedicatedServer;
     if (client) return ExperienceSessionMode::MultiplayerClient;
     return ExperienceSessionMode::Local;
+}
+
+bool SendPlayerXpSnapshot(JNIEnv* env, jobject player) {
+    if (env == nullptr || player == nullptr ||
+        g_bindings.network_packet_send == nullptr ||
+        g_bindings.player_xp_type == nullptr) {
+        return false;
+    }
+    jobject packet_type = env->GetStaticObjectField(
+        g_bindings.packet_type, g_bindings.player_xp_type);
+    jobjectArray values = env->NewObjectArray(1, g_bindings.object, nullptr);
+    if (values != nullptr) env->SetObjectArrayElement(values, 0, player);
+    const bool allocation_failed = ClearException(env);
+    if (packet_type == nullptr || values == nullptr || allocation_failed) {
+        if (values != nullptr) env->DeleteLocalRef(values);
+        if (packet_type != nullptr) env->DeleteLocalRef(packet_type);
+        return false;
+    }
+
+    // PlayerXpPacket.setData(player) is called by the vanilla static sender;
+    // the server-side parser then loads the serialized XP snapshot.
+    env->CallStaticVoidMethod(
+        g_bindings.network_packet, g_bindings.network_packet_send,
+        packet_type, values);
+    const bool sent = !ClearException(env);
+    env->DeleteLocalRef(values);
+    env->DeleteLocalRef(packet_type);
+    return sent;
 }
 
 void ReleaseCatalog(JNIEnv* env) {
@@ -721,6 +767,8 @@ bool AddSkillExperience(const std::string& id, float amount) {
     env->DeleteLocalRef(xp);
     env->DeleteLocalRef(player);
     g_next_refresh = std::chrono::steady_clock::now();
+    RecordPacketAudit(PacketAuditKind::PlayerXp, succeeded, "experience",
+                      id + " delta=" + std::to_string(amount));
     return succeeded;
 }
 
@@ -747,13 +795,33 @@ bool AddSkillExperienceVanilla(const std::string& id, float amount) {
 
     env->CallVoidMethod(
         xp, g_bindings.xp_add, g_internal_skills[index].perk, amount);
-    const bool succeeded = !ClearException(env);
-    g_status.message = succeeded
-        ? "已通过原版 API 添加经验"
-        : "原版 API 添加经验失败";
+    const bool local_succeeded = !ClearException(env);
+    bool packet_succeeded = true;
+    if (local_succeeded &&
+        g_status.session_mode == ExperienceSessionMode::MultiplayerClient) {
+        packet_succeeded = SendPlayerXpSnapshot(env, player);
+    }
+    const bool succeeded = local_succeeded && packet_succeeded;
+    if (!local_succeeded) {
+        g_status.message = "原版 API 添加经验失败";
+    } else if (g_status.session_mode == ExperienceSessionMode::MultiplayerClient &&
+               packet_succeeded) {
+        g_status.message = "经验已变更并调用 PlayerXp 快照发送；服务端结果待确认";
+    } else if (g_status.session_mode == ExperienceSessionMode::MultiplayerClient) {
+        g_status.message = "本地经验已变更，但 PlayerXp 同步包发送失败";
+    } else {
+        g_status.message = "已通过原版 API 添加经验";
+    }
     env->DeleteLocalRef(xp);
     env->DeleteLocalRef(player);
     g_next_refresh = std::chrono::steady_clock::now();
+    RecordPacketAudit(
+        PacketAuditKind::PlayerXp, succeeded,
+        g_status.session_mode == ExperienceSessionMode::MultiplayerClient
+            ? "vanilla+snapshot" : "vanilla",
+        id + " delta=" + std::to_string(amount) +
+            (g_status.session_mode == ExperienceSessionMode::MultiplayerClient
+                ? "; full snapshot" : ""));
     return succeeded;
 }
 

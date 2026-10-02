@@ -285,9 +285,11 @@ void DrawSelectedEditor(const bridge::ExperienceStatus& status,
     const bool vanilla_api_available =
         status.session_mode != bridge::ExperienceSessionMode::Unknown &&
         !settings::IsSafeModeEnabled() && status.player_ready;
+    const char* vanilla_api_label = multiplayer
+        ? "原版 API + PlayerXp 快照" : "原版 API 添加经验";
     ImGui::BeginDisabled(!vanilla_api_available);
     if (ImGui::Button(
-            settings::Translate("原版 API 添加经验"),
+            settings::Translate(vanilla_api_label),
             ImVec2(api_button_width, button_height))) {
         bridge::AddSkillExperienceVanilla(entry->id, g_amount);
     }
@@ -297,6 +299,10 @@ void DrawSelectedEditor(const bridge::ExperienceStatus& status,
             components::RoundedTooltip("安全模式已开启。请到设置中关闭安全模式后使用原版 API。");
         } else if (!status.player_ready) {
             components::RoundedTooltip("等待玩家对象准备完成。");
+        } else if (multiplayer) {
+            components::RoundedTooltip(
+                "发送客户端完整 PlayerXp 经验快照；服务端仅在玩家 ID 可解析且角色存活时载入，当前协议没有确认回执，其他技能以本地快照为准。"
+            );
         }
     }
     components::EndCard();

@@ -17,6 +17,7 @@
 #include "bridge/item_spawn_limiter.hpp"
 #include "bridge/magazine_item_bridge.hpp"
 #include "bridge/pallet_item_bridge.hpp"
+#include "bridge/packet_audit.hpp"
 #include "bridge/main_thread_invoker.hpp"
 #include "bridge/trap_item_bridge.hpp"
 
@@ -500,10 +501,12 @@ int SendVariantTransform(JNIEnv* env, jobject player, jobject inventory,
         detail = sent
             ? "变体交易包已发送，但客户端事务登记失败"
             : "变体交易包构造或发送失败";
+        RecordPacketAudit(PacketAuditKind::ItemTransaction, false, "send", detail);
         return 0;
     }
     detail = "已提交并登记变体交易；将消耗 " + std::to_string(donor_count) +
         " 件合格物品";
+    RecordPacketAudit(PacketAuditKind::ItemTransaction, true, "send", detail);
     if (!first_donor_type.empty()) detail += "（首件：" + first_donor_type + "）";
     g_inventory_refresh_passes = 4;
     g_inventory_refresh_at =

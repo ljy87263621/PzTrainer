@@ -90,6 +90,7 @@
     <ClCompile Include="src\bridge\player_weapon_reliability_bridge.cpp" />
     <ClCompile Include="src\bridge\multi_hit_bridge.cpp" />
     <ClCompile Include="src\bridge\player_effect_bridge.cpp" />
+    <ClCompile Include="src\bridge\packet_audit.cpp" />
     <ClCompile Include="src\bridge\server_player_effect_bridge.cpp" />
     <ClCompile Include="src\bridge\timed_action_bridge.cpp" />
     <ClCompile Include="src\bridge\player_health_bridge.cpp" />
@@ -202,6 +203,8 @@
     <ClInclude Include="src\bridge\player_weapon_reliability_bridge.hpp" />
     <ClInclude Include="src\bridge\multi_hit_bridge.hpp" />
     <ClInclude Include="src\bridge\player_effect_bridge.hpp" />
+    <ClInclude Include="src\bridge\packet_audit.hpp" />
+    <ClInclude Include="src\bridge\server_role_capability.hpp" />
     <ClInclude Include="src\bridge\server_player_effect_bridge.hpp" />
     <ClInclude Include="src\bridge\timed_action_bridge.hpp" />
     <ClInclude Include="src\bridge\player_health_bridge.hpp" />

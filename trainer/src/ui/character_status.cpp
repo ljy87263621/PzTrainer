@@ -13,6 +13,7 @@
 #include "bridge/farming_mode_bridge.hpp"
 #include "bridge/free_build_bridge.hpp"
 #include "bridge/multi_hit_bridge.hpp"
+#include "bridge/packet_audit.hpp"
 #include "bridge/timed_action_bridge.hpp"
 #include "settings/localization.hpp"
 #include "ui/components.hpp"
@@ -124,7 +125,7 @@ void DrawCharacterStatus() {
     } else {
         components::CompactDisabledToggleRow(
             "无疲劳", false,
-            "当前联机角色缺少 CanModifyBodyStats 权限，服务器不会接受该属性同步。"
+            "当前玩家角色缺少 CanModifyBodyStats；游戏内管理员菜单也不会发送该属性同步。"
         );
     }
     if (condition_status.panic_available) {
@@ -135,7 +136,7 @@ void DrawCharacterStatus() {
     } else {
         components::CompactDisabledToggleRow(
             "无恐慌", false,
-            "当前联机角色缺少 CanModifyBodyStats 权限，服务器不会接受该属性同步。"
+            "当前玩家角色缺少 CanModifyBodyStats；游戏内管理员菜单也不会发送该属性同步。"
         );
     }
     if (condition_status.hunger_available) {
@@ -146,7 +147,7 @@ void DrawCharacterStatus() {
     } else {
         components::CompactDisabledToggleRow(
             "无饥饿", false,
-            "当前联机角色缺少 CanModifyBodyStats 权限，服务器不会接受该属性同步。"
+            "当前玩家角色缺少 CanModifyBodyStats；游戏内管理员菜单也不会发送该属性同步。"
         );
     }
     if (condition_status.thirst_available) {
@@ -171,7 +172,7 @@ void DrawCharacterStatus() {
     } else {
         components::CompactDisabledToggleRow(
             "移除负面心情", false,
-            "当前联机角色缺少 CanModifyBodyStats 权限，服务器不会接受该属性同步。"
+            "当前玩家角色缺少 CanModifyBodyStats；游戏内管理员菜单也不会发送该属性同步。"
         );
     }
     if (condition_status.infection_immunity_available) {
@@ -311,13 +312,13 @@ void DrawCharacterStatus() {
         }
         if (ImGui::IsItemHovered()) {
             components::RoundedTooltip(
-                "仅用于单机。启用后，新创建的原版定时动作使用最短时长；已在队列中的动作需要重新开始。"
+                "单机直接使用原版状态；联机仅对连接角色具备 UseTimedActionInstantCheat 时开放。启用后仍由服务端重新计算 BuildAction/FishingAction 时长；已在队列中的动作需要重新开始。"
             );
         }
     } else {
         components::CompactDisabledToggleRow(
             "瞬间完成定时动作", false,
-            "联机动作会在服务器重新创建并计算时长；普通账号无法把读书等服务器动作改成瞬间完成。",
+            timed_action_status.message.c_str(),
             true);
     }
     if (multi_hit_status.enabled && !multi_hit_status.applied) {
@@ -336,6 +337,16 @@ void DrawCharacterStatus() {
     if (timed_action_status.enabled && !timed_action_status.applied) {
         ImGui::TextDisabled(
             "%s", settings::Translate(timed_action_status.message.c_str()));
+    }
+    const std::vector<bridge::PacketAuditEntry> audit =
+        bridge::SnapshotPacketAudit();
+    if (!audit.empty()) {
+        const bridge::PacketAuditEntry& last = audit.back();
+        ImGui::TextDisabled(
+            "最近一次网络入口：%s · %s · %s",
+            bridge::PacketAuditKindName(last.kind),
+            last.accepted ? "已提交" : "已拒绝/未启用",
+            last.detail.c_str());
     }
     components::EndCard();
 
