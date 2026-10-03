@@ -15,6 +15,7 @@
 #include <string>
 
 #include "bridge/jni_game_bridge.hpp"
+#include "bridge/viewpoint_bridge.hpp"
 #include "features/aim/aim_target_point.hpp"
 
 namespace pztrainer::features::aim {
@@ -49,6 +50,7 @@ struct Candidate {
     bool is_player = false;
     std::int32_t identity = 0;
     bridge::ScreenPoint point{};
+    bridge::WorldPoint world_point{};
     float cursor_distance_squared = std::numeric_limits<float>::max();
     float priority_score = -std::numeric_limits<float>::max();
 };
@@ -251,12 +253,14 @@ bridge::ScreenPoint PoseFallbackPoint(const Snapshot& target,
 Candidate EvaluateZombie(const bridge::ZombieSnapshot& zombie,
                          const LegitWeaponSettings& preset,
                          float weapon_damage, float cursor_x, float cursor_y,
-                         float viewport_width, float viewport_height) {
+                         float viewport_width, float viewport_height,
+                         bool viewpoint_3d) {
     Candidate result{};
     if (zombie.dead || zombie.health_fraction <= 0.0f ||
         zombie.current_health <= 0.0f ||
         zombie.distance > preset.range ||
-        (preset.wall_check && zombie.behind_wall)) {
+        (preset.wall_check && zombie.behind_wall) ||
+        (viewpoint_3d && !zombie.has_bones)) {
         return result;
     }
     const float estimated_damage_percent = std::clamp(
@@ -267,10 +271,11 @@ Candidate EvaluateZombie(const bridge::ZombieSnapshot& zombie,
         if ((preset.target_points & bit) == 0) continue;
         const bridge::ScreenPoint fallback =
             PoseFallbackPoint(zombie, binding.point);
-        bridge::ScreenPoint point = ResolveZombieAimPoint(
-            zombie.has_bones, zombie.unstable_pose,
-            zombie.bones[binding.bone_index], fallback);
-        if (!PointVisible(point, viewport_width, viewport_height)) {
+        bridge::ScreenPoint point = viewpoint_3d
+            ? zombie.bones[binding.bone_index]
+            : ResolveZombieAimPoint(zombie.has_bones, zombie.unstable_pose,
+                zombie.bones[binding.bone_index], fallback);
+        if (!viewpoint_3d && !PointVisible(point, viewport_width, viewport_height)) {
             point = PoseFallbackPoint(zombie, binding.point);
         }
         if (!PointVisible(point, viewport_width, viewport_height)) continue;
@@ -281,6 +286,7 @@ Candidate EvaluateZombie(const bridge::ZombieSnapshot& zombie,
             result.valid = true;
             result.identity = zombie.identity;
             result.point = point;
+            result.world_point = zombie.bone_world_positions[binding.bone_index];
             result.cursor_distance_squared = distance_squared;
         }
     }
@@ -320,11 +326,13 @@ Candidate EvaluateZombie(const bridge::ZombieSnapshot& zombie,
 Candidate EvaluatePlayer(const bridge::PlayerSnapshot& player,
                          const LegitWeaponSettings& preset,
                          float weapon_damage, float cursor_x, float cursor_y,
-                         float viewport_width, float viewport_height) {
+                         float viewport_width, float viewport_height,
+                         bool viewpoint_3d) {
     Candidate result{};
     if (player.dead || !player.pvp_enabled || player.health_fraction <= 0.0f ||
         player.current_health <= 0.0f || player.distance > preset.range ||
-        (preset.wall_check && player.behind_wall)) {
+        (preset.wall_check && player.behind_wall) ||
+        (viewpoint_3d && !player.has_bones)) {
         return result;
     }
     const float estimated_damage_percent = std::clamp(
@@ -335,7 +343,7 @@ Candidate EvaluatePlayer(const bridge::PlayerSnapshot& player,
         bridge::ScreenPoint point = player.has_bones
             ? player.bones[binding.bone_index]
             : PoseFallbackPoint(player, binding.point);
-        if (!PointVisible(point, viewport_width, viewport_height)) {
+        if (!viewpoint_3d && !PointVisible(point, viewport_width, viewport_height)) {
             point = PoseFallbackPoint(player, binding.point);
         }
         if (!PointVisible(point, viewport_width, viewport_height)) continue;
@@ -347,6 +355,7 @@ Candidate EvaluatePlayer(const bridge::PlayerSnapshot& player,
             result.is_player = true;
             result.identity = player.identity;
             result.point = point;
+            result.world_point = player.bone_world_positions[binding.bone_index];
             result.cursor_distance_squared = distance_squared;
         }
     }
@@ -396,7 +405,7 @@ Candidate SelectTarget(const bridge::FrameSnapshot& frame,
         for (const bridge::ZombieSnapshot& zombie : frame.zombies) {
             Candidate candidate = EvaluateZombie(
                 zombie, preset, weapon_damage, cursor_x, cursor_y,
-                viewport_width, viewport_height);
+                viewport_width, viewport_height, frame.viewpoint_3d);
             if (BetterCandidate(candidate, best)) best = candidate;
         }
     }
@@ -404,7 +413,7 @@ Candidate SelectTarget(const bridge::FrameSnapshot& frame,
         for (const bridge::PlayerSnapshot& player : frame.players) {
             Candidate candidate = EvaluatePlayer(
                 player, preset, weapon_damage, cursor_x, cursor_y,
-                viewport_width, viewport_height);
+                viewport_width, viewport_height, frame.viewpoint_3d);
             if (BetterCandidate(candidate, best)) best = candidate;
         }
     }
@@ -520,8 +529,10 @@ void UpdateLegitAim(const bridge::FrameSnapshot& frame, bool menu_visible,
     }
     g_status.aiming = true;
 
-    const jint cursor_x = env->CallStaticIntMethod(g_bindings.mouse, g_bindings.mouse_get_x);
-    const jint cursor_y = env->CallStaticIntMethod(g_bindings.mouse, g_bindings.mouse_get_y);
+    const float cursor_x = frame.viewpoint_3d ? viewport_width * 0.5f :
+        static_cast<float>(env->CallStaticIntMethod(g_bindings.mouse, g_bindings.mouse_get_x));
+    const float cursor_y = frame.viewpoint_3d ? viewport_height * 0.5f :
+        static_cast<float>(env->CallStaticIntMethod(g_bindings.mouse, g_bindings.mouse_get_y));
     if (ClearException(env)) {
         env->DeleteLocalRef(weapon);
         env->DeleteLocalRef(player);
@@ -577,7 +588,15 @@ void UpdateLegitAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         next_y = std::clamp(next_y + move_y, 0.0f, viewport_height);
     }
 
-    if (cursor_error <= allowed_error_pixels) {
+    if (frame.viewpoint_3d) {
+        if (bridge::AimViewpointAt(env, target.world_point,
+                cursor_error <= allowed_error_pixels ? 0.0f : response)) {
+            ++g_status.adjustment_count;
+            g_status.message = "正在平滑对准 Viewpoint 3D 目标";
+        } else {
+            ClearTarget("Viewpoint 未捕获鼠标或处于自由相机模式");
+        }
+    } else if (cursor_error <= allowed_error_pixels) {
         g_status.message = "原版准星已对准目标";
     } else if (MoveGameCursor(next_x, next_y, viewport_width, viewport_height)) {
         ++g_status.adjustment_count;

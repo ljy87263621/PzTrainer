@@ -116,11 +116,6 @@ void DrawZombieEsp(const bridge::FrameSnapshot& frame, const VisualSettings& set
             const ImVec2 text_pos(
                 zombie.screen_x - text_size.x * 0.5f,
                 top_left.y - text_size.y - 4.0f);
-            draw_list->AddRectFilled(
-                ImVec2(text_pos.x - 4.0f, text_pos.y - 2.0f),
-                ImVec2(text_pos.x + text_size.x + 4.0f, text_pos.y + text_size.y + 2.0f),
-                IM_COL32(5, 7, 11, 205),
-                3.0f);
             float text_x = text_pos.x;
             if (settings.show_name) {
                 draw_list->AddText(ImVec2(text_x, text_pos.y), ImGui::GetColorU32(name_color), name);

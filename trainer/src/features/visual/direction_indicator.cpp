@@ -59,10 +59,6 @@ void DrawTrailingLabel(ImDrawList* draw, const ArrowGeometry& arrow,
         arrow.center.y - arrow.direction.y * (22.0f + text_size.y * 0.5f));
     const ImVec2 text_pos(text_center.x - text_size.x * 0.5f,
                           text_center.y - text_size.y * 0.5f);
-    draw->AddRectFilled(ImVec2(text_pos.x - 5.0f, text_pos.y - 3.0f),
-        ImVec2(text_pos.x + text_size.x + 5.0f,
-               text_pos.y + text_size.y + 3.0f),
-        IM_COL32(5, 7, 11, 210), 5.0f);
     draw->AddText(text_pos, ImGui::GetColorU32(color), trailing_label);
 }
 

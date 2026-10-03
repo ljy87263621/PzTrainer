@@ -96,6 +96,9 @@ struct AnimalSnapshot : PlayerSnapshot {
 };
 
 struct VehicleSnapshot {
+    float world_x = 0.0f;
+    float world_y = 0.0f;
+    float world_z = 0.0f;
     float screen_x = 0.0f;
     float screen_y = 0.0f;
     float screen_top_y = 0.0f;
@@ -118,6 +121,7 @@ struct VehicleSnapshot {
 };
 
 struct FrameSnapshot {
+    bool viewpoint_3d = false;
     GateStatus gate_status = GateStatus::Initializing;
     std::string gate_message = "正在连接 JVM";
     float camera_zoom = 1.0f;
