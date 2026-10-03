@@ -6,7 +6,7 @@ namespace pztrainer::features::aim {
 
 bool TryReplaceMagicBulletHitList(JNIEnv* env, int character_id,
                                   int target_id, int body_part,
-                                  bool target_is_player);
+                                  bool target_is_player, bool require_new_shot = true);
 void ResetMagicBulletShotTracking();
 
 }  // namespace pztrainer::features::aim

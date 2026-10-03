@@ -100,10 +100,6 @@ void DrawAnimalEsp(const bridge::FrameSnapshot& frame,
             const ImVec2 text_size = ImGui::CalcTextSize(text.c_str());
             const ImVec2 text_pos(animal.screen_x - text_size.x * 0.5f,
                                   minimum.y - text_size.y - 5.0f);
-            draw->AddRectFilled(ImVec2(text_pos.x - 4.0f, text_pos.y - 2.0f),
-                ImVec2(text_pos.x + text_size.x + 4.0f,
-                       text_pos.y + text_size.y + 2.0f),
-                IM_COL32(5, 7, 11, 205), 3.0f);
             draw->AddText(text_pos, ImGui::GetColorU32(
                 ResolveColor(settings.name_colors, state)), text.c_str());
         }

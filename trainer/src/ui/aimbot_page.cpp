@@ -1,4 +1,6 @@
 #include "ui/aimbot_page.hpp"
+#include "bridge/viewpoint_bridge.hpp"
+#include "bridge/player_aiming_delay_bridge.hpp"
 
 #include <imgui.h>
 
@@ -175,6 +177,16 @@ bool DrawWeaponLibraryPanel(AimSettings& settings, AimbotPage page,
     return panel_hovered;
 }
 
+void DrawFastAimingDelayToggle() {
+    bool enabled = bridge::GetPlayerAimingDelayStatus().enabled;
+    if (components::CompactToggleRow("快速结束瞄准延迟", &enabled)) {
+        bridge::SetFastAimingDelayEnabled(enabled);
+    }
+    if (ImGui::IsItemHovered()) {
+        components::RoundedTooltip("结束本地玩家的瞄准延迟；联机可用。Legit 和 Rage 页面共用此开关，可独立使用。");
+    }
+}
+
 void DrawLegitSettings(AimSettings& settings, LegitWeaponSettings* preset) {
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(6.0f, 0.0f));
     if (!ImGui::BeginTable(
@@ -191,6 +203,9 @@ void DrawLegitSettings(AimSettings& settings, LegitWeaponSettings* preset) {
     components::BeginCompactCard(
         "LegitMainCard", nullptr, ImVec2(0.0f, 0.0f));
     components::CompactToggleRow("启用辅助瞄准", &settings.legit_enabled);
+    if (bridge::IsViewpointLoaded()) {
+        components::CompactToggleRow("3D 模式（Viewpoint）", &bridge::GetViewpointSettings().legit_3d);
+    }
     components::CompactToggleRow("自动辅助瞄准", &preset->automatic_aim);
     components::CompactToggleRow("瞄准僵尸", &preset->target_zombies);
     components::CompactToggleRow("瞄准 PVP 玩家", &preset->target_players);
@@ -207,6 +222,7 @@ void DrawLegitSettings(AimSettings& settings, LegitWeaponSettings* preset) {
         "LegitTuningCard", nullptr, ImVec2(0.0f, 0.0f));
     components::CompactToggleRow(
         "移除视觉后坐力", &preset->remove_visual_recoil);
+    DrawFastAimingDelayToggle();
     components::StepperRow("自瞄平滑", &preset->smoothing, 1.0f, 100.0f, 1.0f,
                            "%.0f%%");
     components::StepperRow("命中精度", &preset->accuracy, 0.0f, 100.0f, 1.0f,
@@ -235,6 +251,9 @@ void DrawRageSettings(AimSettings& settings, RageWeaponSettings* preset) {
     components::BeginCompactCard(
         "RageMainCard", nullptr, ImVec2(0.0f, 0.0f));
     components::CompactToggleRow("启用 Rage", &settings.rage_enabled);
+    if (bridge::IsViewpointLoaded()) {
+        components::CompactToggleRow("3D 模式（Viewpoint）", &bridge::GetViewpointSettings().rage_3d);
+    }
     components::CompactToggleRow("自动瞄准", &preset->automatic_aim);
     components::CompactToggleRow("瞄准僵尸", &preset->target_zombies);
     components::CompactToggleRow("瞄准 PVP 玩家", &preset->target_players);
@@ -258,6 +277,7 @@ void DrawRageSettings(AimSettings& settings, RageWeaponSettings* preset) {
     components::BeginCompactCard(
         "RageWeaponCard", nullptr, ImVec2(0.0f, 0.0f));
     components::CompactToggleRow("无扩散", &preset->no_spread);
+    DrawFastAimingDelayToggle();
     components::CompactToggleRow("无视觉后坐力", &preset->no_recoil);
     components::StepperRow("命中精度", &preset->accuracy, 0.0f, 100.0f, 1.0f,
                            "%.0f%%");

@@ -58,6 +58,9 @@
     <ClCompile Include="src\dllmain.cpp" />
     <ClCompile Include="src\bridge\game_startup_gate.cpp" />
     <ClCompile Include="src\bridge\jni_game_bridge.cpp" />
+    <ClCompile Include="src\bridge\viewpoint_bridge.cpp" />
+    <ClCompile Include="src\bridge\player_aiming_delay_bridge.cpp" />
+    <ClCompile Include="src\bridge\rage_fire_bridge.cpp" />
     <ClCompile Include="src\bridge\experience_bridge.cpp" />
     <ClCompile Include="src\bridge\endurance_compensation_bridge.cpp" />
     <ClCompile Include="src\bridge\farming_mode_bridge.cpp" />
@@ -114,6 +117,7 @@
     <ClCompile Include="src\features\aim\rage_ballistics_hook.cpp" />
     <ClCompile Include="src\features\aim\rage_aim.cpp" />
     <ClCompile Include="src\features\visual\native_model_chams.cpp" />
+    <ClCompile Include="src\features\visual\viewpoint_model_chams.cpp" />
     <ClCompile Include="src\features\visual\animal_esp.cpp" />
     <ClCompile Include="src\features\visual\animal_visual_settings.cpp" />
     <ClCompile Include="src\features\visual\direction_indicator.cpp" />
@@ -228,6 +232,7 @@
     <ClInclude Include="src\features\aim\rage_ballistics_hook.hpp" />
     <ClInclude Include="src\features\aim\rage_aim.hpp" />
     <ClInclude Include="src\features\visual\native_model_chams.hpp" />
+    <ClInclude Include="src\features\visual\viewpoint_model_chams.hpp" />
     <ClInclude Include="src\features\visual\animal_esp.hpp" />
     <ClInclude Include="src\features\visual\animal_visual_settings.hpp" />
     <ClInclude Include="src\features\visual\direction_indicator.hpp" />
