@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "bridge/lua_feature_registry.hpp"
+#include "bridge/viewpoint_bridge.hpp"
 #include "features/visual/visual_settings.hpp"
 #include "features/visual/player_visual_settings.hpp"
 #include "features/visual/animal_visual_settings.hpp"
@@ -774,6 +775,11 @@ void DrawVehicleVisualControls() {
 }
 
 void DrawVisualPage() {
+    if (bridge::IsViewpointLoaded()) {
+        CompactToggleRow("3D 模式（Viewpoint）",
+            &bridge::GetViewpointSettings().esp_3d);
+        ImGui::Dummy(ImVec2(0.0f, U(5.0f)));
+    }
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(6.0f, 5.0f));
     if (!ImGui::BeginTable(
             "VisualEspCards", 2,

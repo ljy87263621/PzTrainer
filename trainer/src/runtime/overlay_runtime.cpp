@@ -14,6 +14,8 @@
 #include <string>
 
 #include "bridge/jni_game_bridge.hpp"
+#include "bridge/viewpoint_bridge.hpp"
+#include "bridge/player_aiming_delay_bridge.hpp"
 #include "bridge/game_startup_gate.hpp"
 #include "bridge/experience_bridge.hpp"
 #include "bridge/farming_mode_bridge.hpp"
@@ -42,6 +44,7 @@
 #include "features/aim/legit_aim.hpp"
 #include "features/aim/rage_aim.hpp"
 #include "features/visual/native_model_chams.hpp"
+#include "features/visual/viewpoint_model_chams.hpp"
 #include "features/visual/player_esp.hpp"
 #include "features/visual/player_visual_settings.hpp"
 #include "features/visual/animal_esp.hpp"
@@ -98,6 +101,7 @@ int g_last_model_chams_status = -1;
 std::size_t g_last_captured_model_draws = 0;
 int g_model_chams_zero_capture_frames = 0;
 bool g_logged_model_chams_diagnostics = false;
+std::string g_last_viewpoint_chams_message;
 std::string g_last_legit_status_key;
 std::string g_last_rage_status_key;
 std::string g_last_item_spawn_status;
@@ -479,6 +483,9 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             std::max(
                 legit_needs_zombies ? features::aim::LegitAimCollectionRange() : 0.0f,
                 rage_needs_zombies ? features::aim::RageAimCollectionRange() : 0.0f));
+        bridge::RefreshViewpointCamera(
+            bridge::GetCurrentJniEnvironment(), ImGui::GetIO().DisplaySize.x,
+            ImGui::GetIO().DisplaySize.y);
         const bridge::FrameSnapshot& frame = bridge::CollectFrameSnapshot(
             visual_settings.zombie_esp || legit_needs_zombies || rage_needs_zombies,
             zombie_collection_range,
@@ -505,13 +512,25 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             vehicle_visual_settings.vehicle_esp,
             vehicle_visual_settings.max_distance,
             vehicle_model_visual);
+        const auto& viewpoint_settings = bridge::GetViewpointSettings();
+        const bool viewpoint_active = bridge::IsViewpointActive();
+        bridge::FrameSnapshot viewpoint_frame;
+        if (viewpoint_active && (viewpoint_settings.esp_3d ||
+            viewpoint_settings.legit_3d || viewpoint_settings.rage_3d)) {
+            viewpoint_frame = bridge::MakeViewpointFrame(frame);
+        }
+        const auto& esp_frame = viewpoint_active && viewpoint_settings.esp_3d
+            ? viewpoint_frame : frame;
         features::visual::UpdateWeaponRay(
             frame.gate_status == bridge::GateStatus::SinglePlayerAllowed);
+        bridge::UpdateFastAimingDelay(frame.gate_status == bridge::GateStatus::SinglePlayerAllowed);
         features::aim::UpdateLegitAim(
-            frame, g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
+            viewpoint_active && viewpoint_settings.legit_3d ? viewpoint_frame : frame,
+            g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
             ImGui::GetIO().DisplaySize.y, ImGui::GetIO().DeltaTime);
         features::aim::UpdateRageAim(
-            frame, g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
+            viewpoint_active && viewpoint_settings.rage_3d ? viewpoint_frame : frame,
+            g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
             ImGui::GetIO().DisplaySize.y);
         const features::aim::LegitAimStatus& legit_status =
             features::aim::GetLegitAimStatus();
@@ -538,6 +557,14 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             std::to_string(rage_status.ballistics_override_calls / 120) + "|" +
             std::to_string(rage_status.ballistics_reticle_override_calls / 120) + "|" +
             std::to_string(rage_status.ballistics_target_override_calls / 120) + "|" +
+            std::to_string(rage_status.ballistics_spread_override_calls / 120) + "|" +
+            std::to_string(rage_status.silent_aim) + "|" +
+            std::to_string(rage_status.no_spread) + "|" +
+            std::to_string(rage_status.viewpoint_3d) + "|" +
+            std::to_string(rage_status.fired_count) + "|" +
+            std::to_string(rage_status.java_direction_override_calls / 60) + "|" +
+            std::to_string(rage_status.java_hit_list_calls) + "|" +
+            std::to_string(rage_status.java_body_part_calls) + "|" +
             std::to_string(rage_status.ballistics_hook_character_id) + "|" +
             std::to_string(rage_status.ballistics_published_character_id);
         if (rage_status_key != g_last_rage_status_key) {
@@ -553,7 +580,16 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
                 " reticle=" +
                     std::to_string(rage_status.ballistics_reticle_override_calls) +
                 " targets=" +
-                    std::to_string(rage_status.ballistics_target_override_calls) +
+                std::to_string(rage_status.ballistics_target_override_calls) +
+                " spreadOverrides=" + std::to_string(rage_status.ballistics_spread_override_calls) +
+                " silent=" + std::to_string(rage_status.silent_aim) +
+                " noSpread=" + std::to_string(rage_status.no_spread) +
+                " mode=" + (rage_status.viewpoint_3d ? "3d" : "vanilla") +
+                " fireCalls=" + std::to_string(rage_status.fired_count) +
+                " javaDirections=" + std::to_string(rage_status.java_direction_override_calls) +
+                " javaHitLists=" + std::to_string(rage_status.java_hit_list_calls) +
+                " javaBodyParts=" + std::to_string(rage_status.java_body_part_calls) +
+                " aimDelay=" + std::to_string(rage_status.aiming_delay) +
                 " ids=" + std::to_string(rage_status.ballistics_hook_character_id) +
                 "/" + std::to_string(rage_status.ballistics_published_character_id));
             g_last_rage_status_key = rage_status_key;
@@ -697,7 +733,7 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
                 std::to_string(captured_model_draws));
             g_last_captured_model_draws = captured_model_draws;
         }
-        if (capture_model_draws && captured_model_draws == 0) {
+        if (capture_model_draws && !viewpoint_active && captured_model_draws == 0) {
             ++g_model_chams_zero_capture_frames;
             if (!g_logged_model_chams_diagnostics &&
                 g_model_chams_zero_capture_frames >= 120) {
@@ -736,13 +772,19 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
         features::visual::NativeModelChams::Replay(
             frame, visual_settings, player_visual_settings,
             animal_visual_settings, vehicle_visual_settings);
+        const auto& viewpoint_chams = features::visual::GetViewpointModelChamsStatus();
+        if (viewpoint_active && viewpoint_chams.message != g_last_viewpoint_chams_message) {
+            Log("Viewpoint model chams: " + viewpoint_chams.message +
+                " draws=" + std::to_string(viewpoint_chams.painted_draws));
+            g_last_viewpoint_chams_message = viewpoint_chams.message;
+        }
         if (g_menu_visible.load()) {
             ui::PrepareGlassBlur();
         }
-        features::visual::DrawZombieEsp(frame, visual_settings);
-        features::visual::DrawPlayerEsp(frame, player_visual_settings);
-        features::visual::DrawAnimalEsp(frame, animal_visual_settings);
-        features::visual::DrawVehicleEsp(frame, vehicle_visual_settings);
+        features::visual::DrawZombieEsp(esp_frame, visual_settings);
+        features::visual::DrawPlayerEsp(esp_frame, player_visual_settings);
+        features::visual::DrawAnimalEsp(esp_frame, animal_visual_settings);
+        features::visual::DrawVehicleEsp(esp_frame, vehicle_visual_settings);
         features::visual::DrawWeaponRay();
         ui::DrawTeleportCooldownOverlay();
 

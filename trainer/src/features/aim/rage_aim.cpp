@@ -17,6 +17,8 @@
 #include <unordered_map>
 
 #include "bridge/jni_game_bridge.hpp"
+#include "bridge/viewpoint_bridge.hpp"
+#include "bridge/rage_fire_bridge.hpp"
 #include "bridge/main_thread_invoker.hpp"
 #include "features/aim/rage_ballistics_hook.hpp"
 
@@ -31,7 +33,6 @@ struct Bindings {
     jclass inventory_item = nullptr;
     jclass hand_weapon = nullptr;
     jclass ballistics_controller = nullptr;
-    jclass vector3 = nullptr;
     jclass vector2 = nullptr;
     jclass mouse = nullptr;
     jclass iso_utils = nullptr;
@@ -42,12 +43,6 @@ struct Bindings {
     jmethodID get_player = nullptr;
     jmethodID get_primary_item = nullptr;
     jmethodID is_aiming = nullptr;
-    jmethodID set_is_aiming = nullptr;
-    jmethodID is_force_aim = nullptr;
-    jmethodID set_force_aim = nullptr;
-    jfieldID is_charging = nullptr;
-    jmethodID update_ballistics = nullptr;
-    jmethodID set_angle_from_aim = nullptr;
     jmethodID is_attack_started = nullptr;
     jmethodID get_ballistics_controller = nullptr;
     jmethodID set_recoil_x = nullptr;
@@ -87,10 +82,8 @@ struct Bindings {
     jmethodID get_aiming_time = nullptr;
     jmethodID set_aiming_time = nullptr;
     jmethodID set_aiming_delay = nullptr;
+    jmethodID get_aiming_delay = nullptr;
     jmethodID set_been_moving_for = nullptr;
-    jmethodID get_iso_aiming_position = nullptr;
-    jfieldID target_position = nullptr;
-    jmethodID vector_set = nullptr;
     jmethodID vector2_set = nullptr;
     jmethodID mouse_get_x = nullptr;
     jmethodID mouse_get_y = nullptr;
@@ -117,6 +110,7 @@ struct Candidate {
     std::int32_t identity = 0;
     bridge::WorldPoint point{};
     bridge::ScreenPoint screen_point{};
+    int bone_index = 0;
     int body_part = 2;
     float distance = 0.0f;
     float current_health = 0.0f;
@@ -263,7 +257,6 @@ bool Initialize(JNIEnv* env) {
         env, "zombie/inventory/types/HandWeapon");
     g_bindings.ballistics_controller = LoadGlobalClass(
         env, "zombie/core/physics/BallisticsController");
-    g_bindings.vector3 = LoadGlobalClass(env, "zombie/iso/Vector3");
     g_bindings.vector2 = LoadGlobalClass(env, "zombie/iso/Vector2");
     g_bindings.mouse = LoadGlobalClass(env, "zombie/input/Mouse");
     g_bindings.iso_utils = LoadGlobalClass(env, "zombie/iso/IsoUtils");
@@ -277,7 +270,7 @@ bool Initialize(JNIEnv* env) {
         g_bindings.inventory_item == nullptr ||
         g_bindings.hand_weapon == nullptr ||
         g_bindings.ballistics_controller == nullptr ||
-        g_bindings.vector3 == nullptr || g_bindings.vector2 == nullptr ||
+        g_bindings.vector2 == nullptr ||
         g_bindings.mouse == nullptr || g_bindings.iso_utils == nullptr ||
         g_bindings.game_client == nullptr || g_bindings.udp_connection == nullptr ||
         g_bindings.combat_manager == nullptr ||
@@ -292,18 +285,6 @@ bool Initialize(JNIEnv* env) {
         g_bindings.iso_player, "getPrimaryHandItem",
         "()Lzombie/inventory/InventoryItem;");
     g_bindings.is_aiming = env->GetMethodID(g_bindings.iso_player, "isAiming", "()Z");
-    g_bindings.set_is_aiming = env->GetMethodID(
-        g_bindings.iso_player, "setIsAiming", "(Z)V");
-    g_bindings.is_force_aim = env->GetMethodID(
-        g_bindings.iso_player, "isForceAim", "()Z");
-    g_bindings.set_force_aim = env->GetMethodID(
-        g_bindings.iso_player, "setForceAim", "(Z)V");
-    g_bindings.is_charging = env->GetFieldID(
-        g_bindings.iso_player, "isCharging", "Z");
-    g_bindings.update_ballistics = env->GetMethodID(
-        g_bindings.iso_player, "updateBallistics", "()V");
-    g_bindings.set_angle_from_aim = env->GetMethodID(
-        g_bindings.iso_player, "setAngleFromAim", "()V");
     g_bindings.is_attack_started = env->GetMethodID(
         g_bindings.iso_player, "isAttackStarted", "()Z");
     g_bindings.get_ballistics_controller = env->GetMethodID(
@@ -382,15 +363,10 @@ bool Initialize(JNIEnv* env) {
         g_bindings.hand_weapon, "setAimingTime", "(I)V");
     g_bindings.set_aiming_delay = env->GetMethodID(
         g_bindings.iso_player, "setAimingDelay", "(F)V");
+    g_bindings.get_aiming_delay = env->GetMethodID(
+        g_bindings.iso_player, "getAimingDelay", "()F");
     g_bindings.set_been_moving_for = env->GetMethodID(
         g_bindings.iso_player, "setBeenMovingFor", "(F)V");
-    g_bindings.get_iso_aiming_position = env->GetMethodID(
-        g_bindings.ballistics_controller, "getIsoAimingPosition",
-        "()Lzombie/iso/Vector3;");
-    g_bindings.target_position = env->GetFieldID(
-        g_bindings.ballistics_controller, "targetPosition", "Lzombie/iso/Vector3;");
-    g_bindings.vector_set = env->GetMethodID(
-        g_bindings.vector3, "set", "(FFF)Lzombie/iso/Vector3;");
     g_bindings.vector2_set = env->GetMethodID(
         g_bindings.vector2, "set", "(FF)Lzombie/iso/Vector2;");
     g_bindings.mouse_get_x = env->GetStaticMethodID(
@@ -418,11 +394,6 @@ bool Initialize(JNIEnv* env) {
     g_bindings.ready = !ClearException(env) && g_bindings.get_player != nullptr &&
         g_bindings.get_id != nullptr &&
         g_bindings.get_primary_item != nullptr && g_bindings.is_aiming != nullptr &&
-        g_bindings.set_is_aiming != nullptr &&
-        g_bindings.is_force_aim != nullptr && g_bindings.set_force_aim != nullptr &&
-        g_bindings.is_charging != nullptr &&
-        g_bindings.update_ballistics != nullptr &&
-        g_bindings.set_angle_from_aim != nullptr &&
         g_bindings.is_attack_started != nullptr &&
         g_bindings.get_ballistics_controller != nullptr &&
         g_bindings.set_recoil_x != nullptr && g_bindings.set_recoil_y != nullptr &&
@@ -452,10 +423,8 @@ bool Initialize(JNIEnv* env) {
         g_bindings.get_max_damage != nullptr && g_bindings.set_max_damage != nullptr &&
         g_bindings.get_aiming_time != nullptr &&
         g_bindings.set_aiming_time != nullptr &&
-        g_bindings.set_aiming_delay != nullptr &&
+        g_bindings.set_aiming_delay != nullptr && g_bindings.get_aiming_delay != nullptr &&
         g_bindings.set_been_moving_for != nullptr &&
-        g_bindings.get_iso_aiming_position != nullptr &&
-        g_bindings.target_position != nullptr && g_bindings.vector_set != nullptr &&
         g_bindings.vector2_set != nullptr && g_bindings.mouse_get_x != nullptr &&
         g_bindings.mouse_get_y != nullptr &&
         g_bindings.x_to_screen != nullptr && g_bindings.y_to_screen != nullptr &&
@@ -629,6 +598,7 @@ Candidate SelectTarget(JNIEnv* env, const bridge::FrameSnapshot& frame,
         bridge::ScreenPoint screen_point{};
         int body_part = 2;
         bool found_point = false;
+        int selected_bone = 0;
         for (const TargetBinding& binding : kTargetBindings) {
             if ((preset.target_points & static_cast<std::uint32_t>(binding.point)) == 0) {
                 continue;
@@ -641,12 +611,15 @@ Candidate SelectTarget(JNIEnv* env, const bridge::FrameSnapshot& frame,
             }
             bridge::ScreenPoint projected{};
             if (ValidWorldPoint(predicted) &&
-                ProjectWorldPoint(env, predicted, frame.camera_zoom, projected) &&
+                (frame.viewpoint_3d
+                    ? bridge::ProjectViewpointWorldPoint(predicted, projected)
+                    : ProjectWorldPoint(env, predicted, frame.camera_zoom, projected)) &&
                 PointVisible(projected, viewport_width, viewport_height)) {
                 target_point = predicted;
                 screen_point = projected;
                 body_part = RagdollBodyPartFor(binding.point);
                 found_point = true;
+                selected_bone = static_cast<int>(binding.bone_index);
                 break;
             }
         }
@@ -665,6 +638,7 @@ Candidate SelectTarget(JNIEnv* env, const bridge::FrameSnapshot& frame,
             best.identity = identity;
             best.point = target_point;
             best.screen_point = screen_point;
+            best.bone_index = selected_bone;
             best.body_part = body_part;
             best.distance = distance;
             best.current_health = current_health;
@@ -797,41 +771,10 @@ bool ApplyWeaponSettings(JNIEnv* env, jobject weapon,
                             std::clamp(preset.accuracy, 0.0f, 100.0f))));
     env->CallVoidMethod(weapon, g_bindings.set_min_damage, minimum_damage);
     env->CallVoidMethod(weapon, g_bindings.set_max_damage, maximum_damage);
-    const float accuracy = std::clamp(preset.accuracy, 0.0f, 100.0f) / 100.0f;
     env->CallVoidMethod(
         weapon, g_bindings.set_aiming_time,
-        static_cast<jint>(std::lround(g_override.aiming_time * (1.0f - accuracy))));
+        preset.no_spread ? 0 : g_override.aiming_time);
     return !ClearException(env);
-}
-
-bool SetSilentTarget(JNIEnv* env, jobject player,
-                     const bridge::WorldPoint& point) {
-    jobject controller = env->CallObjectMethod(
-        player, g_bindings.get_ballistics_controller);
-    if (controller == nullptr || ClearException(env)) {
-        if (controller != nullptr) env->DeleteLocalRef(controller);
-        return false;
-    }
-    jobject target = env->GetObjectField(controller, g_bindings.target_position);
-    jobject aiming = env->CallObjectMethod(
-        controller, g_bindings.get_iso_aiming_position);
-    if (target == nullptr || aiming == nullptr || ClearException(env)) {
-        if (target != nullptr) env->DeleteLocalRef(target);
-        if (aiming != nullptr) env->DeleteLocalRef(aiming);
-        env->DeleteLocalRef(controller);
-        return false;
-    }
-    jobject target_result = env->CallObjectMethod(
-        target, g_bindings.vector_set, point.x, point.y, point.z);
-    if (target_result != nullptr) env->DeleteLocalRef(target_result);
-    jobject aiming_result = env->CallObjectMethod(
-        aiming, g_bindings.vector_set, point.x, point.y, point.z);
-    if (aiming_result != nullptr) env->DeleteLocalRef(aiming_result);
-    const bool succeeded = !ClearException(env);
-    env->DeleteLocalRef(target);
-    env->DeleteLocalRef(aiming);
-    env->DeleteLocalRef(controller);
-    return succeeded;
 }
 
 void RestoreMovement(JNIEnv* env) {
@@ -907,21 +850,10 @@ bool StopMovement(JNIEnv* env, jobject player) {
 }
 
 bool EnterAutomaticAim(JNIEnv* env, jobject player) {
-    env->CallVoidMethod(player, g_bindings.set_force_aim, JNI_TRUE);
-    env->CallVoidMethod(player, g_bindings.set_is_aiming, JNI_TRUE);
-    env->SetBooleanField(player, g_bindings.is_charging, JNI_TRUE);
-    if (ClearException(env)) return false;
-
+    const bool aiming = env->CallBooleanMethod(player, g_bindings.is_aiming) == JNI_TRUE;
     jobject controller = env->CallObjectMethod(
         player, g_bindings.get_ballistics_controller);
-    if (controller == nullptr && !ClearException(env)) {
-        env->CallVoidMethod(player, g_bindings.update_ballistics);
-        if (!ClearException(env)) {
-            controller = env->CallObjectMethod(
-                player, g_bindings.get_ballistics_controller);
-        }
-    }
-    const bool ready = controller != nullptr && !ClearException(env);
+    const bool ready = aiming && controller != nullptr && !ClearException(env);
     if (controller != nullptr) env->DeleteLocalRef(controller);
     if (ready) g_forced_aiming = true;
     return ready;
@@ -930,6 +862,7 @@ bool EnterAutomaticAim(JNIEnv* env, jobject player) {
 bool AimAtTarget(JNIEnv* env, jobject player, const bridge::WorldPoint& point,
                  int target_id, int body_part, bool target_is_player,
                  bool silent_aim, bool magic_bullet, bool within_weapon_range,
+                 bool viewpoint_3d,
                  float* angle_error_degrees) {
     if (angle_error_degrees != nullptr) {
         *angle_error_degrees = std::numeric_limits<float>::max();
@@ -943,6 +876,11 @@ bool AimAtTarget(JNIEnv* env, jobject player, const bridge::WorldPoint& point,
             point.x, point.y, point.z, target_is_player, true);
         if (angle_error_degrees != nullptr) *angle_error_degrees = 0.0f;
         return true;
+    }
+
+    if (viewpoint_3d) {
+        ClearRageBallisticsOverride();
+        return bridge::AimViewpointAt(env, point, 1.0f, angle_error_degrees);
     }
 
     const float origin_x = env->CallFloatMethod(player, g_bindings.get_aim_origin_x);
@@ -969,21 +907,7 @@ bool AimAtTarget(JNIEnv* env, jobject player, const bridge::WorldPoint& point,
             -1.0f, 1.0f);
         angle_error = std::acos(dot) * 57.2957795f;
     }
-    if (!SetSilentTarget(env, player, point)) return false;
     ClearRageBallisticsOverride();
-    env->CallVoidMethod(player, g_bindings.set_angle_from_aim);
-    if (ClearException(env)) return false;
-    const float applied_x = env->CallFloatMethod(player, g_bindings.get_forward_x);
-    const float applied_y = env->CallFloatMethod(player, g_bindings.get_forward_y);
-    if (ClearException(env)) return false;
-    const float applied_length = std::sqrt(
-        applied_x * applied_x + applied_y * applied_y);
-    if (applied_length > 0.001f) {
-        const float applied_dot = std::clamp(
-            (applied_x * desired_x + applied_y * desired_y) / applied_length,
-            -1.0f, 1.0f);
-        angle_error = std::acos(applied_dot) * 57.2957795f;
-    }
     if (angle_error_degrees != nullptr) *angle_error_degrees = angle_error;
     return true;
 }
@@ -996,10 +920,7 @@ void ReleaseForcedAim(JNIEnv* env, jobject player) {
         g_attack_call.queue_item != nullptr || Clock::now() < g_force_aim_hold_until) {
         return;
     }
-    env->CallVoidMethod(player, g_bindings.set_force_aim, JNI_FALSE);
-    env->CallVoidMethod(player, g_bindings.set_is_aiming, JNI_FALSE);
-    env->SetBooleanField(player, g_bindings.is_charging, JNI_FALSE);
-    ClearException(env);
+    bridge::ReleaseRageAutomaticAim(env);
     g_forced_aiming = false;
 }
 
@@ -1041,6 +962,7 @@ bool QueueDoubleTapShot(JNIEnv* env, jobject player, jobject weapon) {
 
 void ResetRuntime(JNIEnv* env, const char* message) {
     ClearRageBallisticsOverride();
+    bridge::ClearRageFireTarget(env);
     ReleaseForcedAim(env);
     RestoreMovement(env);
     RestoreWeapon(env);
@@ -1053,6 +975,8 @@ void ResetRuntime(JNIEnv* env, const char* message) {
     g_status.target_identity = 0;
     g_status.double_tap_charging = false;
     g_status.message = message;
+    g_status.waiting_for_aim = false;
+    g_status.aiming_delay = 0.0f;
 }
 
 }  // namespace
@@ -1081,16 +1005,17 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         ballistics_diagnostics.reticle_overrides;
     g_status.ballistics_target_override_calls =
         ballistics_diagnostics.target_overrides;
+    g_status.ballistics_spread_override_calls = ballistics_diagnostics.spread_overrides;
     g_status.ballistics_hook_character_id =
         ballistics_diagnostics.last_character_id;
     g_status.ballistics_published_character_id =
         ballistics_diagnostics.published_character_id;
-    const bridge::AsyncObjectMethodState attack_state =
-        bridge::PollObjectMethodOnMainThread(
-            env, g_attack_call, std::chrono::milliseconds(900), nullptr);
-    if (attack_state == bridge::AsyncObjectMethodState::Succeeded) {
-        ++g_status.fired_count;
-    }
+    bridge::PollObjectMethodOnMainThread(
+        env, g_attack_call, std::chrono::milliseconds(900), nullptr);
+    g_status.fired_count = bridge::RageActualShotCalls(env);
+    g_status.java_direction_override_calls = bridge::RageJavaDirectionCalls(env);
+    g_status.java_hit_list_calls = bridge::RageJavaHitListCalls(env);
+    g_status.java_body_part_calls = bridge::RageJavaBodyPartCalls(env);
     if (!settings.rage_enabled) {
         ResetRuntime(env, "Rage 总开关已关闭");
         return;
@@ -1145,6 +1070,7 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
     }
     if (menu_visible) {
         ClearRageBallisticsOverride();
+        bridge::ClearRageFireTarget(env);
         ReleaseForcedAim(env, player);
         RestoreMovement(env);
         RestoreWeapon(env);
@@ -1176,6 +1102,30 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
     }
     if (g_double_tap_pending && g_double_tap_target.valid) {
         target = g_double_tap_target;
+    }
+    if (target.valid) {
+        if (preset->automatic_stop) StopMovement(env, player);
+        const int character_id = env->CallIntMethod(player, g_bindings.get_id);
+        std::string prepare_error;
+        if (ClearException(env) || !bridge::PrepareRageFireTarget(env, character_id,
+            target.game_id, target.bone_index, target.is_player,
+            !frame.viewpoint_3d && !preset->silent_aim && !preset->magic_bullet,
+            preset->automatic_aim,
+            preset->silent_aim || preset->magic_bullet || preset->no_spread,
+            target.point, prepare_error)) {
+            ClearRageBallisticsOverride();
+            g_status.target_locked = false;
+            g_status.message = prepare_error.empty() ? "实际开火目标准备失败" : prepare_error;
+            env->DeleteLocalRef(weapon);
+            env->DeleteLocalRef(player);
+            return;
+        }
+        const bool projected = frame.viewpoint_3d
+            ? bridge::ProjectViewpointWorldPoint(target.point, target.screen_point)
+            : ProjectWorldPoint(env, target.point, frame.camera_zoom, target.screen_point);
+        if (!projected || !PointVisible(target.screen_point, viewport_width, viewport_height)) {
+            target.valid = false;
+        }
     }
     if (!ApplyWeaponSettings(
             env, weapon, *preset,
@@ -1215,7 +1165,7 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
             RestoreMovement(env);
         }
         if (preset->automatic_aim) {
-            if (preset->accuracy >= 99.5f) {
+            if (preset->no_spread) {
                 env->CallVoidMethod(player, g_bindings.set_aiming_delay, 0.0f);
                 env->CallVoidMethod(player, g_bindings.set_been_moving_for, 0.0f);
                 env->CallVoidMethod(player, g_bindings.set_recoil_x, 0.0f);
@@ -1237,13 +1187,16 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
                 env, player, target.point, target.game_id,
                 target.body_part, target.is_player, preset->silent_aim,
                 preset->magic_bullet,
-                target.distance <= maximum_range + 5.0f, &angle_error);
+                target.distance <= maximum_range + 5.0f,
+                frame.viewpoint_3d, &angle_error);
             const float tolerance = 0.35f +
                 (1.0f - std::clamp(preset->accuracy, 0.0f, 100.0f) / 100.0f) *
                     7.65f;
             if (preset->magic_bullet) {
                 aim_ready = adjusted;
             } else if (preset->silent_aim) {
+                aim_ready = adjusted && angle_error <= tolerance;
+            } else if (frame.viewpoint_3d) {
                 aim_ready = adjusted && angle_error <= tolerance;
             } else {
                 const jint cursor_x = env->CallStaticIntMethod(
@@ -1279,8 +1232,39 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         RestoreMovement(env);
         ReleaseForcedAim(env, player);
     }
+    g_status.silent_aim = preset->silent_aim;
+    g_status.no_spread = preset->no_spread;
+    g_status.viewpoint_3d = frame.viewpoint_3d;
+    g_status.waiting_for_aim = false;
+    g_status.aiming_delay = 0.0f;
+    bool spread_ready = true;
+    if (target.valid && aiming) {
+        g_status.aiming_delay = env->CallFloatMethod(player, g_bindings.get_aiming_delay);
+        const bool delay_valid = !ClearException(env) && std::isfinite(g_status.aiming_delay);
+        g_status.waiting_for_aim = !preset->no_spread &&
+            (!delay_valid || g_status.aiming_delay > 0.01f);
+        aim_ready = aim_ready && delay_valid && !g_status.waiting_for_aim;
+        const int character_id = env->CallIntMethod(player, g_bindings.get_id);
+        if (ClearException(env)) {
+            spread_ready = false;
+        } else if (preset->no_spread) {
+            spread_ready = InitializeRageBallisticsHook();
+            if (spread_ready) {
+                if (frame.viewpoint_3d && !preset->silent_aim &&
+                    !preset->magic_bullet && aim_ready &&
+                    target.distance <= maximum_range + 5.0f) {
+                    SetRageBallisticsOverride(character_id, target.game_id, target.body_part,
+                        target.point.x, target.point.y, target.point.z, target.is_player, false);
+                }
+                SetRageSpreadOverride(character_id, true);
+            }
+        } else {
+            SetRageSpreadOverride(character_id, false);
+        }
+    }
     if (!target.valid) {
         ClearRageBallisticsOverride();
+        bridge::ClearRageFireTarget(env);
         g_double_tap_pending = false;
         g_double_tap_target = Candidate{};
         g_status.message = "范围内没有符合条件的目标";
@@ -1288,6 +1272,10 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         g_status.message = preset->automatic_aim
             ? "正在进入原版强制瞄准状态"
             : "按住原版瞄准键以启用魔法子弹";
+    } else if (!spread_ready) {
+        g_status.message = "弹道无扩散接口尚未就绪，暂停自动开火";
+    } else if (g_status.waiting_for_aim) {
+        g_status.message = "等待原版准星收缩完成";
     } else if (!aim_ready) {
         g_status.message = "自动急停并对准所选骨骼位置";
     } else if (ammunition <= 0) {
@@ -1329,7 +1317,7 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
                     g_status.message = "首枪已提交，等待 DT 第二枪";
                 } else {
                     g_double_tap_target = Candidate{};
-                    g_status.message = "已通过原版攻击入口自动开枪";
+                    g_status.message = "已提交原版射击操作，等待游戏开火";
                 }
             } else {
                 g_status.message = "原版射击任务排队失败";

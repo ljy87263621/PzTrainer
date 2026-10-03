@@ -1197,6 +1197,9 @@ const FrameSnapshot& CollectFrameSnapshot(
                             camera_zoom;
                         if (!ClearException(env)) {
                             AnimalSnapshot snapshot{};
+                            snapshot.world_x = x;
+                            snapshot.world_y = y;
+                            snapshot.world_z = z;
                             snapshot.screen_x = screen_x;
                             snapshot.screen_y = screen_y;
                             snapshot.screen_top_y = screen_top_y;
@@ -1329,6 +1332,9 @@ const FrameSnapshot& CollectFrameSnapshot(
             const float distance = std::sqrt(delta_x * delta_x + delta_y * delta_y);
             if (!ClearException(env) && distance <= vehicle_max_distance) {
                 VehicleSnapshot snapshot{};
+                snapshot.world_x = x;
+                snapshot.world_y = y;
+                snapshot.world_z = z;
                 snapshot.distance = distance;
                 snapshot.vehicle_id = env->CallShortMethod(
                     vehicle, g_bindings.vehicle_get_id);

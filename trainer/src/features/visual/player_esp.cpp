@@ -158,10 +158,6 @@ void DrawPlayerEsp(const bridge::FrameSnapshot& frame,
                                    std::max(name_size.y, distance_size.y));
             const ImVec2 text_pos(player.screen_x - text_size.x * 0.5f,
                                   top_left.y - text_size.y - 4.0f);
-            draw->AddRectFilled(ImVec2(text_pos.x - 4.0f, text_pos.y - 2.0f),
-                ImVec2(text_pos.x + text_size.x + 4.0f,
-                       text_pos.y + text_size.y + 2.0f),
-                IM_COL32(5, 7, 11, 205), 3.0f);
             float text_x = text_pos.x;
             if (settings.show_name) {
                 draw->AddText(ImVec2(text_x, text_pos.y),

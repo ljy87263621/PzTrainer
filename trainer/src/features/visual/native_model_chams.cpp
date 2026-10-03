@@ -17,6 +17,8 @@
 
 #include "bridge/jni_game_bridge.hpp"
 #include "bridge/world_visibility_render_bridge.hpp"
+#include "bridge/viewpoint_bridge.hpp"
+#include "features/visual/viewpoint_model_chams.hpp"
 
 namespace pztrainer::features::visual {
 namespace {
@@ -1202,7 +1204,7 @@ void NativeModelChams::SetCaptureEnabled(
             : vehicle_settings.model_colors.normal,
     };
     g_capture_target_colors_ready = true;
-    const bool capture_enabled = enabled && g_initialized;
+    const bool capture_enabled = enabled && g_initialized && !bridge::IsViewpointActive();
     g_capture_enabled.store(capture_enabled, std::memory_order_release);
     if (capture_enabled) ++g_capture_enable_true_calls;
     g_capture_vehicle_tint_enabled = capture_enabled &&
@@ -1245,6 +1247,23 @@ void NativeModelChams::Replay(
     {
         std::lock_guard<std::mutex> command_lock(g_commands_mutex);
         replay_commands.swap(g_commands);
+    }
+    if (bridge::IsViewpointActive()) {
+        if (g_capture_target_colors_ready) {
+            std::array<ImVec4, 12> colors{};
+            for (std::size_t index = 0; index < colors.size(); ++index) {
+                const int group = static_cast<int>(index) / 3;
+                const bool enabled = group == 0 ? zombie_models : group == 1 ? player_models
+                    : group == 2 ? animal_models : vehicle_models;
+                if (!enabled) continue;
+                const ZombieModelEffect effect = group == 0 ? settings.model_effect
+                    : group == 1 ? player_settings.model_effect : group == 2 ? animal_settings.model_effect
+                    : vehicle_settings.model_effect;
+                colors[index] = EffectColor(g_capture_fill_colors[index], effect, index);
+            }
+            DrawViewpointModelChams(g_capture_target_colors, colors);
+        }
+        return;
     }
     if (replay_commands.empty()) return;
 

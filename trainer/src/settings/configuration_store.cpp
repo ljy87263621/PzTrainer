@@ -10,6 +10,8 @@
 #include <utility>
 
 #include "bridge/lua_script_bridge.hpp"
+#include "bridge/viewpoint_settings.hpp"
+#include "bridge/player_aiming_delay_bridge.hpp"
 #include "bridge/extension_bridge.hpp"
 #include "bridge/farming_mode_bridge.hpp"
 #include "bridge/free_build_bridge.hpp"
@@ -37,7 +39,7 @@ namespace pztrainer::settings {
 namespace {
 
 constexpr std::array<char, 8> kMagic{'P', 'Z', 'C', 'F', 'G', '0', '1', '\0'};
-constexpr std::uint32_t kVersion = 16;
+constexpr std::uint32_t kVersion = 18;
 constexpr std::uint32_t kTargetPointMask = (1u << 15) - 1u;
 constexpr std::uint32_t kMaximumLuaScripts = 256;
 constexpr std::uint32_t kMaximumLuaControls = 4096;
@@ -976,8 +978,13 @@ bool SaveConfiguration(const std::string& name, std::string& error) {
     output.write(reinterpret_cast<const char*>(&header), sizeof(header));
     output.write(reinterpret_cast<const char*>(&payload), sizeof(payload));
     const bridge::ExtensionOptions extensions = bridge::GetExtensionOptions();
+    const auto& viewpoint = bridge::GetViewpointSettings();
+    const std::array<std::uint8_t, 3> viewpoint_flags{
+        viewpoint.esp_3d, viewpoint.legit_3d, viewpoint.rage_3d};
+    const std::uint8_t fast_aiming_delay = bridge::GetPlayerAimingDelayStatus().enabled;
     if (!output || !WriteLuaConfiguration(output, lua_configuration) ||
-        !WriteValue(output, extensions.flags) || !WriteValue(output, extensions.kill_range)) {
+        !WriteValue(output, extensions.flags) || !WriteValue(output, extensions.kill_range) ||
+        !WriteValue(output, viewpoint_flags) || !WriteValue(output, fast_aiming_delay)) {
         error = "Unable to write configuration file.";
         return false;
     }
@@ -1001,17 +1008,31 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
     ConfigurationPayload payload{};
     std::vector<bridge::LuaScriptConfiguration> lua_configuration;
     bridge::ExtensionOptions extensions;
+    std::array<std::uint8_t, 3> viewpoint_flags{};
+    std::uint8_t fast_aiming_delay = 0;
     bool has_lua_configuration = false;
-    if ((header.version == kVersion || header.version == 15) &&
+    if ((header.version == kVersion || header.version == 17 || header.version == 16 || header.version == 15) &&
         header.payload_size == sizeof(ConfigurationPayload)) {
         input.read(reinterpret_cast<char*>(&payload), sizeof(payload));
         has_lua_configuration = input &&
             ReadLuaConfiguration(input, lua_configuration, true, true);
-        if (header.version == kVersion &&
+        if (header.version >= 16 &&
             (!ReadValue(input, extensions.flags) || !ReadValue(input, extensions.kill_range) ||
              extensions.flags < 0 || extensions.flags > 2047 ||
              extensions.kill_range < 1 || extensions.kill_range > 30)) {
             error = "Extension configuration is invalid or incomplete.";
+            return false;
+        }
+        if (header.version >= 17 &&
+            (!ReadValue(input, viewpoint_flags) ||
+             std::any_of(viewpoint_flags.begin(), viewpoint_flags.end(),
+                 [](std::uint8_t flag) { return flag > 1; }))) {
+            error = "Viewpoint configuration is invalid or incomplete.";
+            return false;
+        }
+        if (header.version == kVersion &&
+            (!ReadValue(input, fast_aiming_delay) || fast_aiming_delay > 1)) {
+            error = "Aiming delay configuration is invalid or incomplete.";
             return false;
         }
     } else if ((header.version == 14 || header.version == 13 ||
@@ -1087,7 +1108,7 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         return false;
     }
     if (!input ||
-        ((header.version == kVersion || header.version == 15 || header.version == 14 ||
+        ((header.version == kVersion || header.version == 17 || header.version == 16 || header.version == 15 || header.version == 14 ||
           header.version == 13 || header.version == 12 || header.version == 11 ||
           header.version == 10 ||
           header.version == 9 ||
@@ -1116,6 +1137,9 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
     }
     ApplyConfiguration(payload);
     bridge::GetExtensionOptions() = extensions;
+    bridge::GetViewpointSettings() = {
+        viewpoint_flags[0] != 0, viewpoint_flags[1] != 0, viewpoint_flags[2] != 0};
+    bridge::SetFastAimingDelayEnabled(fast_aiming_delay != 0);
     if (has_lua_configuration) {
         bridge::ApplyLuaScriptConfiguration(std::move(lua_configuration));
     }

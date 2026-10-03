@@ -293,7 +293,7 @@ bool IsNewShot(JNIEnv* env, jobject player, int character_id) {
 
 bool TryReplaceMagicBulletHitList(JNIEnv* env, int character_id,
                                   int target_id, int body_part,
-                                  bool target_is_player) {
+                                  bool target_is_player, bool require_new_shot) {
     if (env == nullptr || target_id < 0 || !Initialize(env)) return false;
     jobject player = env->CallStaticObjectMethod(
         g_bindings.iso_player, g_bindings.get_player);
@@ -303,7 +303,7 @@ bool TryReplaceMagicBulletHitList(JNIEnv* env, int character_id,
     }
     const int player_id = env->CallIntMethod(player, g_bindings.get_id);
     if (ClearException(env) || player_id != character_id ||
-        !IsNewShot(env, player, character_id)) {
+        (require_new_shot && !IsNewShot(env, player, character_id))) {
         env->DeleteLocalRef(player);
         return false;
     }
