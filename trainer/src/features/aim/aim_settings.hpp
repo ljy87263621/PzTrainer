@@ -69,6 +69,31 @@ struct RageWeaponSettings {
     std::uint32_t target_points = static_cast<std::uint32_t>(TargetPoint::Head);
 };
 
+// These switches are kept separate from RageWeaponSettings so existing
+// configuration payloads retain their binary layout. New payload versions
+// append this array and old configurations default every switch to enabled.
+struct RageWeaponModifierToggles {
+    bool accuracy_enabled = true;
+    bool minimum_damage_enabled = true;
+    bool maximum_damage_enabled = true;
+};
+
+struct RageWeaponOriginalValues {
+    float projectile_spread = 0.0f;
+    int hit_chance = 0;
+    float minimum_damage = 0.0f;
+    float maximum_damage = 0.0f;
+    int aiming_time = 0;
+};
+
+struct RageWeaponAppliedValues {
+    float projectile_spread = 0.0f;
+    int hit_chance = 0;
+    float minimum_damage = 0.0f;
+    float maximum_damage = 0.0f;
+    int aiming_time = 0;
+};
+
 struct AimSettings {
     bool legit_enabled = false;
     bool rage_enabled = false;
@@ -81,6 +106,17 @@ struct AimSettings {
 };
 
 AimSettings& GetAimSettings();
+std::array<RageWeaponModifierToggles,
+           static_cast<std::size_t>(WeaponGroup::Count)>&
+GetRageWeaponModifierToggles();
 const char* WeaponGroupName(WeaponGroup group);
+
+float EffectiveRageAccuracy(const RageWeaponSettings& settings,
+                            const RageWeaponModifierToggles& toggles);
+RageWeaponAppliedValues ResolveRageWeaponModifiers(
+    const RageWeaponSettings& settings,
+    const RageWeaponModifierToggles& toggles,
+    const RageWeaponOriginalValues& original,
+    float target_current_health);
 
 }  // namespace pztrainer::features::aim

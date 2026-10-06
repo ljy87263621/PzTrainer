@@ -18,10 +18,14 @@ This repository is organized as one build unit:
 From the repository root, run:
 
 ```powershell
-.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.1'
+.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.2'
 ```
 
 The script builds the trainer first, builds the launcher with that DLL embedded as a resource, writes SHA-256 sums, and produces a portable ZIP under `artifacts\`.
+
+The script is the default marker-disabled developer build. The published beta.2 package was produced from a VMProtect-processed trainer DLL and then rebuilt through PzLauncher; the protected-release handoff is documented in [docs/RELEASE.md](docs/RELEASE.md). End users of the published package do not need the VMProtect SDK.
+
+The trainer includes optional Viewpoint 3D compatibility. When a compatible Viewpoint mod is installed in the target Project Zomboid build, the visual page exposes 3D ESP for zombies, players, animals, and vehicles, and the aim pages expose separate 3D Legit/Rage switches. The portable package embeds the bridge and Java helper but does not redistribute the third-party Viewpoint mod.
 
 ## Usage boundary
 

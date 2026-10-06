@@ -12,7 +12,7 @@ The runtime flow is:
 Build the complete pair from the repository root:
 
 ```powershell
-.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.1'
+.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.2'
 ```
 
 The default build does not require VMProtect. Protected marker builds require a separately installed SDK and `-EnableVmProtectMarkers -VmProtectRoot <path>`.

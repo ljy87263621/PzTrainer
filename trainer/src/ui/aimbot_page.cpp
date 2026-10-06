@@ -18,6 +18,7 @@ namespace {
 
 using features::aim::AimSettings;
 using features::aim::LegitWeaponSettings;
+using features::aim::RageWeaponModifierToggles;
 using features::aim::RageWeaponSettings;
 using features::aim::WeaponGroup;
 
@@ -235,7 +236,8 @@ void DrawLegitSettings(AimSettings& settings, LegitWeaponSettings* preset) {
     ImGui::PopStyleVar();
 }
 
-void DrawRageSettings(AimSettings& settings, RageWeaponSettings* preset) {
+void DrawRageSettings(AimSettings& settings, RageWeaponSettings* preset,
+                      RageWeaponModifierToggles* modifiers) {
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(6.0f, 5.0f));
     if (!ImGui::BeginTable(
             "RageSettingsGrid", 2,
@@ -279,10 +281,16 @@ void DrawRageSettings(AimSettings& settings, RageWeaponSettings* preset) {
     components::CompactToggleRow("无扩散", &preset->no_spread);
     DrawFastAimingDelayToggle();
     components::CompactToggleRow("无视觉后坐力", &preset->no_recoil);
+    components::CompactToggleRow(
+        "启用命中精度修正", &modifiers->accuracy_enabled);
     components::StepperRow("命中精度", &preset->accuracy, 0.0f, 100.0f, 1.0f,
                            "%.0f%%");
+    components::CompactToggleRow(
+        "启用最低伤害修正", &modifiers->minimum_damage_enabled);
     components::StepperRow("最低伤害", &preset->minimum_damage,
                            0.0f, 100.0f, 1.0f, "%.0f%%");
+    components::CompactToggleRow(
+        "启用最高伤害修正", &modifiers->maximum_damage_enabled);
     components::StepperRow("最高伤害", &preset->maximum_damage,
                            0.0f, 100.0f, 1.0f, "%.0f%%", false);
     if (preset->maximum_damage < preset->minimum_damage) {
@@ -353,7 +361,10 @@ void DrawAimbotPage(AimbotPage page) {
     if (page == AimbotPage::Rage) {
         RageWeaponSettings& preset = settings.rage_presets[
             static_cast<std::size_t>(settings.selected_rage_weapon)];
-        DrawRageSettings(settings, &preset);
+        RageWeaponModifierToggles& modifiers =
+            features::aim::GetRageWeaponModifierToggles()[
+                static_cast<std::size_t>(settings.selected_rage_weapon)];
+        DrawRageSettings(settings, &preset, &modifiers);
         return;
     }
     LegitWeaponSettings& preset = settings.legit_presets[

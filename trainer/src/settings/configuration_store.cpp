@@ -39,7 +39,9 @@ namespace pztrainer::settings {
 namespace {
 
 constexpr std::array<char, 8> kMagic{'P', 'Z', 'C', 'F', 'G', '0', '1', '\0'};
-constexpr std::uint32_t kVersion = 18;
+// Version 19 combines the remote Viewpoint/aiming-delay fields with the
+// local Rage modifier toggles.
+constexpr std::uint32_t kVersion = 19;
 constexpr std::uint32_t kTargetPointMask = (1u << 15) - 1u;
 constexpr std::uint32_t kMaximumLuaScripts = 256;
 constexpr std::uint32_t kMaximumLuaControls = 4096;
@@ -196,6 +198,22 @@ struct CharacterConfigurationV1 {
 
 struct ConfigurationPayload {
     features::aim::AimSettings aim{};
+    std::array<features::aim::RageWeaponModifierToggles,
+               static_cast<std::size_t>(features::aim::WeaponGroup::Count)>
+        rage_weapon_modifiers{};
+    features::visual::VisualSettings zombies{};
+    features::visual::PlayerVisualSettings players{};
+    features::visual::AnimalVisualSettings animals{};
+    features::visual::VehicleVisualSettings vehicles{};
+    features::visual::WeaponRaySettings weapon_ray{};
+    WorldVisualConfiguration world{};
+    CharacterConfiguration character{};
+    float ui_scale_percent = 100.0f;
+    Language language = Language::Chinese;
+};
+
+struct ConfigurationPayloadV16 {
+    features::aim::AimSettings aim{};
     features::visual::VisualSettings zombies{};
     features::visual::PlayerVisualSettings players{};
     features::visual::AnimalVisualSettings animals{};
@@ -314,6 +332,12 @@ struct ConfigurationPayloadV4 {
 static_assert(
     std::is_trivially_copyable_v<ConfigurationPayload>,
     "Configuration payload must remain safe for binary serialization.");
+static_assert(
+    std::is_trivially_copyable_v<ConfigurationPayloadV16>,
+    "Legacy configuration payload must remain safe for binary serialization.");
+static_assert(
+    sizeof(ConfigurationPayload) != sizeof(ConfigurationPayloadV16),
+    "Current and legacy configuration payloads must remain distinguishable.");
 static_assert(
     std::is_trivially_copyable_v<ConfigurationPayloadV14>,
     "Legacy configuration payload must remain safe for binary serialization.");
@@ -505,6 +529,22 @@ void UpgradeWorldConfiguration(
     target.precipitation_mode = legacy.precipitation_mode;
     target.fog_intensity = legacy.fog_intensity;
     target.precipitation_intensity = legacy.precipitation_intensity;
+}
+
+ConfigurationPayload UpgradeConfiguration(
+    const ConfigurationPayloadV16& legacy) {
+    ConfigurationPayload payload{};
+    payload.aim = legacy.aim;
+    payload.zombies = legacy.zombies;
+    payload.players = legacy.players;
+    payload.animals = legacy.animals;
+    payload.vehicles = legacy.vehicles;
+    payload.weapon_ray = legacy.weapon_ray;
+    payload.world = legacy.world;
+    payload.character = legacy.character;
+    payload.ui_scale_percent = legacy.ui_scale_percent;
+    payload.language = legacy.language;
+    return payload;
 }
 
 ConfigurationPayload UpgradeConfiguration(
@@ -762,6 +802,8 @@ bool ConfigurationPath(const std::string& name, std::filesystem::path& path,
 ConfigurationPayload CaptureConfiguration() {
     ConfigurationPayload payload{};
     payload.aim = features::aim::GetAimSettings();
+    payload.rage_weapon_modifiers =
+        features::aim::GetRageWeaponModifierToggles();
     payload.zombies = features::visual::GetVisualSettings();
     payload.players = features::visual::GetPlayerVisualSettings();
     payload.animals = features::visual::GetAnimalVisualSettings();
@@ -884,6 +926,8 @@ void ValidatePayload(ConfigurationPayload& payload) {
 void ApplyConfiguration(ConfigurationPayload payload) {
     ValidatePayload(payload);
     features::aim::GetAimSettings() = payload.aim;
+    features::aim::GetRageWeaponModifierToggles() =
+        payload.rage_weapon_modifiers;
     features::visual::GetVisualSettings() = payload.zombies;
     features::visual::GetPlayerVisualSettings() = payload.players;
     features::visual::GetAnimalVisualSettings() = payload.animals;
@@ -1011,30 +1055,80 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
     std::array<std::uint8_t, 3> viewpoint_flags{};
     std::uint8_t fast_aiming_delay = 0;
     bool has_lua_configuration = false;
-    if ((header.version == kVersion || header.version == 17 || header.version == 16 || header.version == 15) &&
+
+    const auto read_extensions = [&]() {
+        if (!ReadValue(input, extensions.flags) ||
+            !ReadValue(input, extensions.kill_range) ||
+            extensions.flags < 0 || extensions.flags > 2047 ||
+            extensions.kill_range < 1 || extensions.kill_range > 30) {
+            error = "Extension configuration is invalid or incomplete.";
+            return false;
+        }
+        return true;
+    };
+    const auto read_viewpoint_flags = [&]() {
+        if (!ReadValue(input, viewpoint_flags) ||
+            std::any_of(viewpoint_flags.begin(), viewpoint_flags.end(),
+                [](std::uint8_t flag) { return flag > 1; })) {
+            error = "Viewpoint configuration is invalid or incomplete.";
+            return false;
+        }
+        return true;
+    };
+    const auto read_fast_aiming_delay = [&]() {
+        if (!ReadValue(input, fast_aiming_delay) || fast_aiming_delay > 1) {
+            error = "Aiming delay configuration is invalid or incomplete.";
+            return false;
+        }
+        return true;
+    };
+
+    if (header.version == kVersion &&
         header.payload_size == sizeof(ConfigurationPayload)) {
         input.read(reinterpret_cast<char*>(&payload), sizeof(payload));
         has_lua_configuration = input &&
             ReadLuaConfiguration(input, lua_configuration, true, true);
-        if (header.version >= 16 &&
-            (!ReadValue(input, extensions.flags) || !ReadValue(input, extensions.kill_range) ||
-             extensions.flags < 0 || extensions.flags > 2047 ||
-             extensions.kill_range < 1 || extensions.kill_range > 30)) {
-            error = "Extension configuration is invalid or incomplete.";
+        if (!read_extensions() || !read_viewpoint_flags() ||
+            !read_fast_aiming_delay()) {
             return false;
         }
-        if (header.version >= 17 &&
-            (!ReadValue(input, viewpoint_flags) ||
-             std::any_of(viewpoint_flags.begin(), viewpoint_flags.end(),
-                 [](std::uint8_t flag) { return flag > 1; }))) {
-            error = "Viewpoint configuration is invalid or incomplete.";
+    } else if (header.version == 18 &&
+               header.payload_size == sizeof(ConfigurationPayloadV16)) {
+        ConfigurationPayloadV16 legacy{};
+        input.read(reinterpret_cast<char*>(&legacy), sizeof(legacy));
+        if (input) payload = UpgradeConfiguration(legacy);
+        has_lua_configuration = input &&
+            ReadLuaConfiguration(input, lua_configuration, true, true);
+        if (!read_extensions() || !read_viewpoint_flags() ||
+            !read_fast_aiming_delay()) {
             return false;
         }
-        if (header.version == kVersion &&
-            (!ReadValue(input, fast_aiming_delay) || fast_aiming_delay > 1)) {
-            error = "Aiming delay configuration is invalid or incomplete.";
-            return false;
-        }
+    } else if (header.version == 17 &&
+               header.payload_size == sizeof(ConfigurationPayload)) {
+        // Local v17 files contain Rage modifier toggles but predate the
+        // Viewpoint and aiming-delay trailer fields.
+        input.read(reinterpret_cast<char*>(&payload), sizeof(payload));
+        has_lua_configuration = input &&
+            ReadLuaConfiguration(input, lua_configuration, true, true);
+        if (!read_extensions()) return false;
+    } else if (header.version == 17 &&
+               header.payload_size == sizeof(ConfigurationPayloadV16)) {
+        // Remote v17 files use the pre-modifier payload and include Viewpoint
+        // flags in their trailer.
+        ConfigurationPayloadV16 legacy{};
+        input.read(reinterpret_cast<char*>(&legacy), sizeof(legacy));
+        if (input) payload = UpgradeConfiguration(legacy);
+        has_lua_configuration = input &&
+            ReadLuaConfiguration(input, lua_configuration, true, true);
+        if (!read_extensions() || !read_viewpoint_flags()) return false;
+    } else if ((header.version == 16 || header.version == 15) &&
+               header.payload_size == sizeof(ConfigurationPayloadV16)) {
+        ConfigurationPayloadV16 legacy{};
+        input.read(reinterpret_cast<char*>(&legacy), sizeof(legacy));
+        if (input) payload = UpgradeConfiguration(legacy);
+        has_lua_configuration = input &&
+            ReadLuaConfiguration(input, lua_configuration, true, true);
+        if (header.version == 16 && !read_extensions()) return false;
     } else if ((header.version == 14 || header.version == 13 ||
                 header.version == 12 || header.version == 11) &&
         header.payload_size == sizeof(ConfigurationPayloadV14)) {
@@ -1108,12 +1202,7 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         return false;
     }
     if (!input ||
-        ((header.version == kVersion || header.version == 17 || header.version == 16 || header.version == 15 || header.version == 14 ||
-          header.version == 13 || header.version == 12 || header.version == 11 ||
-          header.version == 10 ||
-          header.version == 9 ||
-          header.version == 8 ||
-          header.version == 7 || header.version == 6) &&
+        ((header.version >= 6 && header.version <= kVersion) &&
          !has_lua_configuration)) {
         error = "Configuration file is incomplete.";
         return false;

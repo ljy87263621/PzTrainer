@@ -338,6 +338,8 @@ void AddAimFeatures(std::vector<Entry>& entries) {
         AddInteger(entries, legit_prefix + ".target_points", "aim.legit", "击中点位掩码", &legit.target_points, 0, (1 << 15) - 1, 1);
 
         RageWeaponSettings& rage = settings.rage_presets[index];
+        RageWeaponModifierToggles& rage_modifiers =
+            GetRageWeaponModifierToggles()[index];
         const std::string rage_prefix = "aim.rage.presets." + names[index];
         AddBool(entries, rage_prefix + ".enabled", "aim.rage", "启用预设", &rage.enabled);
         AddBool(entries, rage_prefix + ".automatic_aim", "aim.rage", "自动瞄准", &rage.automatic_aim);
@@ -349,6 +351,9 @@ void AddAimFeatures(std::vector<Entry>& entries) {
         AddBool(entries, rage_prefix + ".wall_check", "aim.rage", "检测墙壁", &rage.wall_check);
         AddBool(entries, rage_prefix + ".no_spread", "aim.rage", "无扩散", &rage.no_spread);
         AddBool(entries, rage_prefix + ".no_recoil", "aim.rage", "无视觉后坐力", &rage.no_recoil);
+        AddBool(entries, rage_prefix + ".accuracy_enabled", "aim.rage", "启用命中精度修正", &rage_modifiers.accuracy_enabled);
+        AddBool(entries, rage_prefix + ".minimum_damage_enabled", "aim.rage", "启用最低伤害修正", &rage_modifiers.minimum_damage_enabled);
+        AddBool(entries, rage_prefix + ".maximum_damage_enabled", "aim.rage", "启用最高伤害修正", &rage_modifiers.maximum_damage_enabled);
         AddBool(entries, rage_prefix + ".double_tap", "aim.rage", "DT 双发模式", &rage.double_tap);
         AddNumber(entries, rage_prefix + ".range", "aim.rage", "攻击范围", &rage.range, 1.0, 100.0, 1.0);
         AddNumber(entries, rage_prefix + ".accuracy", "aim.rage", "命中精度", &rage.accuracy, 0.0, 100.0, 1.0);

@@ -481,14 +481,19 @@ WeaponGroup ClassifyWeapon(const std::string& full_type, float maximum_range) {
     return WeaponGroup::Rifle;
 }
 
-const RageWeaponSettings* ActivePreset(const AimSettings& settings,
-                                       WeaponGroup group) {
+WeaponGroup ActivePresetGroup(const AimSettings& settings, WeaponGroup group) {
     const RageWeaponSettings& specific = settings.rage_presets[
         static_cast<std::size_t>(group)];
-    if (specific.enabled) return &specific;
-    const RageWeaponSettings& global = settings.rage_presets[
-        static_cast<std::size_t>(WeaponGroup::Global)];
-    return global.enabled ? &global : nullptr;
+    if (specific.enabled) return group;
+    return WeaponGroup::Global;
+}
+
+const RageWeaponSettings* ActivePreset(const AimSettings& settings,
+                                       WeaponGroup group) {
+    const WeaponGroup active_group = ActivePresetGroup(settings, group);
+    const RageWeaponSettings& preset = settings.rage_presets[
+        static_cast<std::size_t>(active_group)];
+    return preset.enabled ? &preset : nullptr;
 }
 
 bool ValidWorldPoint(const bridge::WorldPoint& point) {
@@ -728,6 +733,7 @@ void RestoreWeapon(JNIEnv* env) {
 
 bool ApplyWeaponSettings(JNIEnv* env, jobject weapon,
                          const RageWeaponSettings& preset,
+                         const RageWeaponModifierToggles& toggles,
                          float target_current_health) {
     if (g_override.weapon == nullptr ||
         env->IsSameObject(g_override.weapon, weapon) != JNI_TRUE) {
@@ -751,29 +757,23 @@ bool ApplyWeaponSettings(JNIEnv* env, jobject weapon,
             return false;
         }
     }
-    const float minimum_damage_percent = std::clamp(
-        preset.minimum_damage, 0.0f, 100.0f);
-    const float maximum_damage_percent = std::clamp(
-        std::max(preset.maximum_damage, minimum_damage_percent),
-        0.0f, 100.0f);
-    const bool has_target_health = std::isfinite(target_current_health) &&
-        target_current_health > 0.0f;
-    const float minimum_damage = has_target_health
-        ? target_current_health * minimum_damage_percent / 100.0f
-        : g_override.minimum_damage;
-    const float maximum_damage = has_target_health
-        ? target_current_health * maximum_damage_percent / 100.0f
-        : g_override.maximum_damage;
+    const RageWeaponAppliedValues values = ResolveRageWeaponModifiers(
+        preset, toggles,
+        RageWeaponOriginalValues{
+            g_override.projectile_spread, g_override.hit_chance,
+            g_override.minimum_damage, g_override.maximum_damage,
+            g_override.aiming_time},
+        target_current_health);
     env->CallVoidMethod(weapon, g_bindings.set_projectile_spread,
-                        preset.no_spread ? 0.0f : g_override.projectile_spread);
+                        values.projectile_spread);
     env->CallVoidMethod(weapon, g_bindings.set_hit_chance,
-                        static_cast<jint>(std::lround(
-                            std::clamp(preset.accuracy, 0.0f, 100.0f))));
-    env->CallVoidMethod(weapon, g_bindings.set_min_damage, minimum_damage);
-    env->CallVoidMethod(weapon, g_bindings.set_max_damage, maximum_damage);
-    env->CallVoidMethod(
-        weapon, g_bindings.set_aiming_time,
-        preset.no_spread ? 0 : g_override.aiming_time);
+                        static_cast<jint>(values.hit_chance));
+    env->CallVoidMethod(weapon, g_bindings.set_min_damage,
+                        values.minimum_damage);
+    env->CallVoidMethod(weapon, g_bindings.set_max_damage,
+                        values.maximum_damage);
+    env->CallVoidMethod(weapon, g_bindings.set_aiming_time,
+                        static_cast<jint>(values.aiming_time));
     return !ClearException(env);
 }
 
@@ -1053,6 +1053,7 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         return;
     }
     const WeaponGroup weapon_group = ClassifyWeapon(weapon_type, maximum_range);
+    const WeaponGroup preset_group = ActivePresetGroup(settings, weapon_group);
     const RageWeaponSettings* preset = ActivePreset(settings, weapon_group);
     g_status.firearm_ready = true;
     g_status.weapon_group = weapon_group;
@@ -1068,6 +1069,8 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         g_status.message = "当前 Rage 武器预设未启用";
         return;
     }
+    const RageWeaponModifierToggles& modifier_toggles =
+        GetRageWeaponModifierToggles()[static_cast<std::size_t>(preset_group)];
     if (menu_visible) {
         ClearRageBallisticsOverride();
         bridge::ClearRageFireTarget(env);
@@ -1129,6 +1132,7 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
     }
     if (!ApplyWeaponSettings(
             env, weapon, *preset,
+            modifier_toggles,
             target.valid ? target.current_health : 0.0f)) {
         env->DeleteLocalRef(weapon);
         env->DeleteLocalRef(player);
