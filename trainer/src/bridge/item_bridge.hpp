@@ -21,6 +21,8 @@ enum class ItemSpawnMethod {
     WeaponPartDetach,
     PalletItemExtract,
     CorpsePayload,
+    LightPayload,
+    MediaPayload,
 };
 
 enum class ItemSessionMode {

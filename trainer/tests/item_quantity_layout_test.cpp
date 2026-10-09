@@ -92,6 +92,8 @@ const std::string& GetExplosiveTrapWeaponStatus() { static std::string s; return
 const std::string& GetExplosiveTrapWeaponPartStatus() { static std::string s; return s; }
 const std::string& GetPalletItemStatus() { static std::string s; return s; }
 const std::string& GetCorpsePayloadStatus() { static std::string s; return s; }
+const std::string& GetLightItemPayloadStatus() { static std::string s; return s; }
+const std::string& GetMediaItemPayloadStatus() { static std::string s; return s; }
 int GetOnlineItemSpawnCooldownRemaining() { return 0; }
 }
 

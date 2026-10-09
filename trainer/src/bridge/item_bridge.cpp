@@ -15,7 +15,9 @@
 #include "bridge/corpse_item_bridge.hpp"
 #include "bridge/explosive_trap_item_bridge.hpp"
 #include "bridge/item_spawn_limiter.hpp"
+#include "bridge/light_item_payload_bridge.hpp"
 #include "bridge/magazine_item_bridge.hpp"
+#include "bridge/media_item_payload_bridge.hpp"
 #include "bridge/pallet_item_bridge.hpp"
 #include "bridge/packet_audit.hpp"
 #include "bridge/main_thread_invoker.hpp"
@@ -753,7 +755,9 @@ bool RefreshItemCatalog() {
         entry.category = JavaString(env, category);
         entry.spawn_method_mask = ItemSpawnMethodMask(ItemSpawnMethod::Game) |
             ItemSpawnMethodMask(ItemSpawnMethod::PalletItemExtract) |
-            ItemSpawnMethodMask(ItemSpawnMethod::CorpsePayload);
+            ItemSpawnMethodMask(ItemSpawnMethod::CorpsePayload) |
+            ItemSpawnMethodMask(ItemSpawnMethod::LightPayload) |
+            ItemSpawnMethodMask(ItemSpawnMethod::MediaPayload);
         jobject sample = full_name == nullptr
             ? nullptr
             : env->CallStaticObjectMethod(
@@ -873,6 +877,8 @@ void UpdateItemBridge() {
             UpdateWeaponMagazineExtraction(env, player);
             UpdatePalletItemBridge(env, player);
             UpdateCorpsePayloadBridge(env, player);
+            UpdateLightItemPayloadBridge(env, player);
+            UpdateMediaItemPayloadBridge(env, player);
         }
         DeleteLocalRef(env, player);
     }
@@ -971,7 +977,13 @@ const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
         }
         if (method != ItemSpawnMethod::CorpsePayload &&
             destination != ItemSpawnDestination::Backpack) {
-            g_last_result.message = "联机取物仅支持背包，不能生成到地面";
+            if (method == ItemSpawnMethod::LightPayload) {
+                g_last_result.message = "灯具载荷仅支持背包，不能生成到地面";
+            } else if (method == ItemSpawnMethod::MediaPayload) {
+                g_last_result.message = "媒体载荷仅支持背包，不能生成到地面";
+            } else {
+                g_last_result.message = "联机取物仅支持背包，不能生成到地面";
+            }
             return g_last_result;
         }
 
@@ -1093,6 +1105,30 @@ const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
                     g_last_result.created_count == safe_quantity;
                 g_last_result.message = detail;
             }
+        } else if (method == ItemSpawnMethod::LightPayload) {
+            if (destination != ItemSpawnDestination::Backpack) {
+                g_last_result.message =
+                    "灯具载荷仅支持背包，不能生成到地面";
+            } else {
+                std::string detail;
+                g_last_result.created_count = QueueLightItemPayload(
+                    env, player, full_type, safe_quantity, detail);
+                g_last_result.succeeded =
+                    g_last_result.created_count == safe_quantity;
+                g_last_result.message = detail;
+            }
+        } else if (method == ItemSpawnMethod::MediaPayload) {
+            if (destination != ItemSpawnDestination::Backpack) {
+                g_last_result.message =
+                    "媒体载荷仅支持背包，不能生成到地面";
+            } else {
+                std::string detail;
+                g_last_result.created_count = QueueMediaItemPayload(
+                    env, player, full_type, safe_quantity, detail);
+                g_last_result.succeeded =
+                    g_last_result.created_count == safe_quantity;
+                g_last_result.message = detail;
+            }
         } else {
             g_last_result.message = "当前生成方案不支持联机客户端";
         }
@@ -1111,7 +1147,9 @@ const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
         method == ItemSpawnMethod::WeaponMagazineExtract ||
         method == ItemSpawnMethod::WeaponPartDetach ||
         method == ItemSpawnMethod::PalletItemExtract ||
-        method == ItemSpawnMethod::CorpsePayload) {
+        method == ItemSpawnMethod::CorpsePayload ||
+        method == ItemSpawnMethod::LightPayload ||
+        method == ItemSpawnMethod::MediaPayload) {
         if (method == ItemSpawnMethod::CorpsePayload) {
             g_last_result.message = "尸体载荷仅适用于联机客户端";
         } else if (method == ItemSpawnMethod::VariantTransform) {
@@ -1126,6 +1164,10 @@ const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
             g_last_result.message = "配件拆出请求仅适用于联机客户端";
         } else if (method == ItemSpawnMethod::PalletItemExtract) {
             g_last_result.message = "联机取物仅适用于联机客户端";
+        } else if (method == ItemSpawnMethod::LightPayload) {
+            g_last_result.message = "灯具载荷仅适用于联机客户端";
+        } else if (method == ItemSpawnMethod::MediaPayload) {
+            g_last_result.message = "媒体载荷仅适用于联机客户端";
         } else {
             g_last_result.message = "弹药拆出请求仅适用于联机客户端";
         }

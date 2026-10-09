@@ -89,6 +89,8 @@
     <ClCompile Include="src\bridge\explosive_trap_item_bridge.cpp" />
     <ClCompile Include="src\bridge\pallet_item_bridge.cpp" />
     <ClCompile Include="src\bridge\corpse_item_bridge.cpp" />
+    <ClCompile Include="src\bridge\light_item_payload_bridge.cpp" />
+    <ClCompile Include="src\bridge\media_item_payload_bridge.cpp" />
     <ClCompile Include="src\bridge\player_ammo_bridge.cpp" />
     <ClCompile Include="src\bridge\player_weapon_reliability_bridge.cpp" />
     <ClCompile Include="src\bridge\multi_hit_bridge.cpp" />
@@ -203,6 +205,8 @@
     <ClInclude Include="src\bridge\explosive_trap_item_bridge.hpp" />
     <ClInclude Include="src\bridge\pallet_item_bridge.hpp" />
     <ClInclude Include="src\bridge\corpse_item_bridge.hpp" />
+    <ClInclude Include="src\bridge\light_item_payload_bridge.hpp" />
+    <ClInclude Include="src\bridge\media_item_payload_bridge.hpp" />
     <ClInclude Include="src\bridge\player_ammo_bridge.hpp" />
     <ClInclude Include="src\bridge\player_weapon_reliability_bridge.hpp" />
     <ClInclude Include="src\bridge\multi_hit_bridge.hpp" />
