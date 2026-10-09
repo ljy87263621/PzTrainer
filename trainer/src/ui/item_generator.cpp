@@ -24,6 +24,7 @@
 #include "ui/animation.hpp"
 #include "ui/components.hpp"
 #include "ui/corpse_payload_panel.hpp"
+#include "ui/controls/action_controls.hpp"
 
 namespace pztrainer::ui {
 namespace {
@@ -457,6 +458,91 @@ void ExecuteSelected(const std::vector<ItemCatalogEntry>& catalog, int quantity)
     g_status = result.message;
 }
 
+void DrawSpawnControls(const std::vector<ItemCatalogEntry>& catalog,
+                       bool corpse_scheme, bool online_retrieve_scheme) {
+    const ImVec2 row_start = ImGui::GetCursorScreenPos();
+    const float width = ImGui::GetContentRegionAvail().x;
+    const float right = row_start.x + width;
+    const auto continue_line = [right](float next_width, float gap) {
+        if (ImGui::GetItemRectMax().x + gap + next_width <= right)
+            ImGui::SameLine(0.0f, gap);
+    };
+    const char* backpack_label = T("背包");
+    const char* ground_label = T("地面");
+    const float backpack_width = std::min(width, TextControlWidth(backpack_label, 82.0f, 24.0f));
+    const float ground_width = std::min(width, TextControlWidth(ground_label, 82.0f, 24.0f));
+    if (!corpse_scheme) {
+        const float number_width = std::max(U(44.0f),
+            ImGui::CalcTextSize("100").x + ImGui::GetStyle().FramePadding.x * 2.0f + U(4.0f));
+        ImGui::BeginGroup();
+        ImGui::AlignTextToFramePadding();
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() +
+            std::max(1.0f, width - number_width - U(8.0f)));
+        ImGui::TextWrapped("%s", T("数量"));
+        ImGui::PopTextWrapPos();
+        ImGui::EndGroup();
+        ImGui::SameLine(0.0f, U(8.0f));
+        controls::IntegerStepperField("##ItemQuantity", &g_quantity, 1, 100,
+            std::min(ImGui::GetContentRegionAvail().x,
+                std::max(U(156.0f), controls::IntegerStepperWidth(1, 100))));
+        const float destination_width = ImGui::CalcTextSize(T("生成到")).x + U(8.0f) +
+            backpack_width + U(7.0f) + ground_width;
+        continue_line(destination_width, U(18.0f));
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(T("生成到"));
+    if (corpse_scheme) {
+        g_destination = ItemSpawnDestination::Ground;
+        continue_line(ImGui::CalcTextSize(T("脚下僵尸尸体")).x, U(8.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.92f));
+        ImGui::TextWrapped("%s", T("脚下僵尸尸体"));
+        ImGui::PopStyleColor();
+    } else {
+        continue_line(backpack_width, U(8.0f));
+        DestinationButton(backpack_label, ItemSpawnDestination::Backpack, backpack_width);
+        continue_line(ground_width, U(7.0f));
+        if (online_retrieve_scheme) {
+            g_destination = ItemSpawnDestination::Backpack;
+            ImGui::BeginDisabled();
+            SelectionButton(ground_label, false, ground_width);
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("%s", T("联机取物仅支持背包，不能生成到地面"));
+            }
+        } else {
+            DestinationButton(ground_label, ItemSpawnDestination::Ground, ground_width);
+        }
+    }
+
+    const int cooldown = bridge::GetItemSessionMode() == bridge::ItemSessionMode::MultiplayerClient
+        ? bridge::GetOnlineItemSpawnCooldownRemaining() : 0;
+    char cooldown_label[64]{};
+    const char* execute_label = T("执行方案");
+    if (cooldown > 0) {
+        std::snprintf(cooldown_label, sizeof(cooldown_label), "请稍候 %.1f 秒",
+            static_cast<double>(cooldown) / 1000.0);
+        execute_label = cooldown_label;
+    }
+    const float execute_width = std::min(width, TextControlWidth(execute_label, 116.0f, 24.0f));
+    const float action_left = right - execute_width;
+    const ImVec2 last_minimum = ImGui::GetItemRectMin();
+    const ImVec2 last_maximum = ImGui::GetItemRectMax();
+    if (last_maximum.x + U(12.0f) <= action_left) {
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(action_left, last_minimum.y));
+    } else {
+        ImGui::SetCursorScreenPos(ImVec2(action_left, last_maximum.y + U(6.0f)));
+    }
+    ImGui::BeginDisabled(
+        (corpse_scheme ? !HasCorpsePayloadSelection() : g_selected_type.empty()) || cooldown > 0);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.78f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kAccent);
+    if (ImGui::Button(execute_label, ImVec2(execute_width, U(34.0f))))
+        ExecuteSelected(catalog, g_quantity);
+    ImGui::PopStyleColor(2);
+    ImGui::EndDisabled();
+}
+
 }  // namespace
 
 void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
@@ -483,6 +569,7 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     ImGui::Dummy(ImVec2(0.0f, U(3.0f)));
     BeginCard("ItemGeneratorControls", nullptr, ImVec2(0.0f, 0.0f));
     const float control_width = ImGui::GetContentRegionAvail().x;
+    const float control_right = ImGui::GetCursorScreenPos().x + control_width;
     const char* category_preview = ItemCategoryLabel(g_category);
     const std::string method_preview = MethodSelectionLabel();
     const float category_width = TextControlWidth(
@@ -491,6 +578,10 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
         method_preview.c_str(), 238.0f, 42.0f);
     const float field_gap = U(8.0f);
     const bool wrap_filters = control_width < U(620.0f);
+    if (wrap_filters) {
+        DrawSpawnControls(catalog, corpse_scheme, online_retrieve_scheme);
+        ImGui::Dummy(ImVec2(0.0f, U(6.0f)));
+    }
     const float search_width = wrap_filters
         ? control_width
         : std::max(
@@ -505,7 +596,7 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     } else {
         ImGui::SameLine(0.0f, field_gap);
     }
-    ImGui::SetNextItemWidth(category_width);
+    ImGui::SetNextItemWidth(std::min(category_width, control_width));
     const float category_popup_height = std::min(
         U(320.0f), U(16.0f + static_cast<float>(categories.size()) * 28.0f));
     if (BeginAnimatedCombo(
@@ -522,93 +613,17 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
         }
         EndAnimatedDropdown();
     }
-    ImGui::SameLine(0.0f, field_gap);
-    ImGui::SetNextItemWidth(method_width);
+    if (ImGui::GetItemRectMax().x + field_gap + method_width <=
+        control_right) {
+        ImGui::SameLine(0.0f, field_gap);
+    }
+    ImGui::SetNextItemWidth(std::min(method_width, control_width));
     DrawMethodSelector();
 
-    ImGui::Dummy(ImVec2(0.0f, U(6.0f)));
-    const ImVec2 control_row_start = ImGui::GetCursorScreenPos();
-    if (!corpse_scheme) {
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(T("数量"));
-        ImGui::SameLine(0.0f, U(8.0f));
-        ImGui::SetNextItemWidth(U(156.0f));
-        if (ImGui::InputInt("##ItemQuantity", &g_quantity, 1, 10)) {
-            g_quantity = std::clamp(g_quantity, 1, 100);
-        }
-        ImGui::SameLine(0.0f, U(18.0f));
+    if (!wrap_filters) {
+        ImGui::Dummy(ImVec2(0.0f, U(6.0f)));
+        DrawSpawnControls(catalog, corpse_scheme, online_retrieve_scheme);
     }
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(T("生成到"));
-    ImGui::SameLine(0.0f, U(8.0f));
-    if (corpse_scheme) {
-        g_destination = ItemSpawnDestination::Ground;
-        ImGui::PushStyleColor(
-            ImGuiCol_Text, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.92f));
-        ImGui::TextUnformatted(T("脚下僵尸尸体"));
-        ImGui::PopStyleColor();
-    } else {
-        const char* backpack_label = T("背包");
-        const char* ground_label = T("地面");
-        const float backpack_width = TextControlWidth(
-            backpack_label, 82.0f, 24.0f);
-        const float ground_width = TextControlWidth(
-            ground_label, 82.0f, 24.0f);
-        DestinationButton(
-            backpack_label, ItemSpawnDestination::Backpack, backpack_width);
-        ImGui::SameLine(0.0f, U(7.0f));
-        if (online_retrieve_scheme) {
-            g_destination = ItemSpawnDestination::Backpack;
-            ImGui::BeginDisabled();
-            SelectionButton(ground_label, false, ground_width);
-            ImGui::EndDisabled();
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                ImGui::SetTooltip("%s", T(
-                    "联机取物仅支持背包，不能生成到地面"));
-            }
-        } else {
-            DestinationButton(
-                ground_label, ItemSpawnDestination::Ground, ground_width);
-        }
-    }
-
-    const bool online_cooldown_active =
-        bridge::GetItemSessionMode() == bridge::ItemSessionMode::MultiplayerClient;
-    const int online_cooldown_milliseconds = online_cooldown_active
-        ? bridge::GetOnlineItemSpawnCooldownRemaining()
-        : 0;
-    char cooldown_label[64]{};
-    const char* execute_label = T("执行方案");
-    if (online_cooldown_milliseconds > 0) {
-        std::snprintf(
-            cooldown_label, sizeof(cooldown_label), "请稍候 %.1f 秒",
-            static_cast<double>(online_cooldown_milliseconds) / 1000.0);
-        execute_label = cooldown_label;
-    }
-    const float execute_width = TextControlWidth(execute_label, 116.0f, 24.0f);
-    const float action_width = execute_width;
-    const float action_left = control_row_start.x + control_width - action_width;
-    const float destination_right = ImGui::GetItemRectMax().x;
-    if (destination_right + U(12.0f) <= action_left) {
-        ImGui::SameLine();
-        ImGui::SetCursorScreenPos(ImVec2(action_left, control_row_start.y));
-    } else {
-        ImGui::SetCursorScreenPos(ImVec2(
-            std::max(control_row_start.x, action_left),
-            ImGui::GetItemRectMax().y + U(6.0f)));
-    }
-    ImGui::BeginDisabled(
-        (corpse_scheme ? !HasCorpsePayloadSelection() : g_selected_type.empty()) ||
-        online_cooldown_milliseconds > 0);
-    ImGui::PushStyleColor(
-        ImGuiCol_Button, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.78f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kAccent);
-    if (ImGui::Button(
-            execute_label, ImVec2(execute_width, U(34.0f)))) {
-        ExecuteSelected(catalog, g_quantity);
-    }
-    ImGui::PopStyleColor(2);
-    ImGui::EndDisabled();
 
     if (online_retrieve_scheme) {
         ImGui::Dummy(ImVec2(0.0f, U(4.0f)));

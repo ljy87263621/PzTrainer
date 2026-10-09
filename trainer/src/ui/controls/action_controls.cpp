@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -13,6 +14,41 @@
 namespace pztrainer::ui::controls {
 namespace {
 float U(float value) { return value * settings::UiScale(); }
+
+float IntegerTextWidth(int minimum, int maximum) {
+    char first[32]{};
+    char last[32]{};
+    std::snprintf(first, sizeof(first), "%d", minimum);
+    std::snprintf(last, sizeof(last), "%d", maximum);
+    return std::max(U(44.0f),
+        std::max(ImGui::CalcTextSize(first).x, ImGui::CalcTextSize(last).x) +
+            ImGui::GetStyle().FramePadding.x * 2.0f + U(4.0f));
+}
+
+bool StepButton(const char* label, float width) {
+    ImGui::PushID(label);
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const ImVec2 size(width, ImGui::GetFrameHeight());
+    ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, true);
+    const bool clicked = ImGui::InvisibleButton("step", size, ImGuiButtonFlags_EnableNav);
+    ImGui::PopItemFlag();
+    const float hover = animation::Clamp01(animation::Spring(
+        ImGui::GetID("hover"), ImGui::IsItemHovered() ? 1.0f : 0.0f, 260.0f, 24.0f));
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    draw->AddRectFilled(start, ImVec2(start.x + size.x, start.y + size.y),
+        ImGui::GetColorU32(animation::Lerp(
+            ImVec4(0.045f, 0.054f, 0.074f, 0.8f),
+            ImVec4(0.12f, 0.26f, 0.46f, 0.7f), hover)), U(7.0f));
+    draw->AddRect(start, ImVec2(start.x + size.x, start.y + size.y),
+        ImGui::GetColorU32(ImVec4(0.24f, 0.49f, 0.92f, 0.25f + hover * 0.35f)),
+        U(7.0f), 0, U(1.0f));
+    const ImVec2 text = ImGui::CalcTextSize(label);
+    draw->AddText(ImVec2(start.x + (size.x - text.x) * 0.5f,
+                        start.y + (size.y - text.y) * 0.5f),
+        ImGui::GetColorU32(components::kText), label);
+    ImGui::PopID();
+    return clicked;
+}
 
 bool DrawAction(const char* label, bool selected, bool choice) {
     ImGui::PushID(label);
@@ -106,6 +142,52 @@ bool IntegerField(const char* id, int* value, int minimum, int maximum, float wi
     draw->AddRect(start, ImVec2(start.x + width, start.y + height),
         ImGui::GetColorU32(ImVec4(0.24f, 0.49f, 0.92f, 0.22f + amount * 0.55f)), U(7), 0, U(1));
     if (changed) *value = std::clamp(*value, minimum, maximum);
+    ImGui::PopID();
+    return changed;
+}
+
+float IntegerStepperWidth(int minimum, int maximum) {
+    return IntegerTextWidth(minimum, maximum) +
+        (ImGui::GetFrameHeight() + U(4.0f)) * 2.0f;
+}
+
+bool IntegerStepperField(const char* id, int* value, int minimum, int maximum,
+                         float width, int fast_step) {
+    ImGui::PushID(id);
+    ImGui::BeginGroup();
+    const float gap = U(4.0f);
+    const bool inline_buttons = width >= IntegerStepperWidth(minimum, maximum);
+    const float button_width = inline_buttons ? ImGui::GetFrameHeight() :
+        std::min(ImGui::GetFrameHeight(), std::max(1.0f, (width - gap) * 0.5f));
+    const auto step = [&](const char* label, int direction) {
+        ImGui::BeginDisabled(direction < 0 ? *value <= minimum : *value >= maximum);
+        const bool clicked = StepButton(label, button_width);
+        ImGui::EndDisabled();
+        if (clicked) {
+            const int amount = ImGui::GetIO().KeyCtrl ? std::max(1, fast_step) : 1;
+            *value = static_cast<int>(std::clamp<long long>(
+                static_cast<long long>(*value) + static_cast<long long>(direction) * amount,
+                minimum, maximum));
+        }
+        return clicked;
+    };
+    bool changed = false;
+    if (inline_buttons) {
+        changed |= step("-", -1);
+        ImGui::SameLine(0.0f, gap);
+    }
+    changed |= IntegerField("number", value, minimum, maximum,
+        inline_buttons ? width - (button_width + gap) * 2.0f : width);
+    if (inline_buttons) {
+        ImGui::SameLine(0.0f, gap);
+    } else {
+        // Preserve the numeric field when the available width cannot fit
+        // both step buttons beside it. The buttons remain on the next line.
+        changed |= step("-", -1);
+        ImGui::SameLine(0.0f, gap);
+    }
+    changed |= step("+", 1);
+    ImGui::EndGroup();
     ImGui::PopID();
     return changed;
 }
