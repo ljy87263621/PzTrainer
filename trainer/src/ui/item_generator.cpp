@@ -16,9 +16,11 @@
 #include "bridge/explosive_trap_item_bridge.hpp"
 #include "bridge/item_bridge.hpp"
 #include "bridge/item_spawn_limiter.hpp"
+#include "bridge/light_item_payload_bridge.hpp"
 #include "settings/localization.hpp"
 #include "settings/ui_preferences.hpp"
 #include "bridge/magazine_item_bridge.hpp"
+#include "bridge/media_item_payload_bridge.hpp"
 #include "bridge/pallet_item_bridge.hpp"
 #include "ui/animated_dropdown.hpp"
 #include "ui/animation.hpp"
@@ -35,7 +37,7 @@ using namespace components;
 
 constexpr float kCardHeight = 136.0f;
 constexpr float kCardGap = 10.0f;
-constexpr std::size_t kMethodCount = 9;
+constexpr std::size_t kMethodCount = 11;
 
 struct MethodInfo {
     ItemSpawnMethod value;
@@ -54,10 +56,14 @@ constexpr std::array<MethodInfo, kMethodCount> kMethods{{
     {ItemSpawnMethod::WeaponPartDetach, "配件拆出", "配件", "带挂载点的武器配件"},
     {ItemSpawnMethod::PalletItemExtract, "联机取物", "联机", "联机取物，支持有效物品"},
     {ItemSpawnMethod::CorpsePayload, "尸体载荷", "尸体", "在脚下投递包含目标物品的服务器僵尸尸体"},
+    {ItemSpawnMethod::LightPayload, "灯具载荷", "灯具", "利用附近空灯位的可改装灯具取出目标物品"},
+    {ItemSpawnMethod::MediaPayload, "媒体载荷", "媒体", "利用手持便携收音机的媒体槽取出目标物品"},
 }};
 
 constexpr std::array<ItemSpawnMethod, kMethodCount> kExecutionPriority{{
     ItemSpawnMethod::CorpsePayload,
+    ItemSpawnMethod::MediaPayload,
+    ItemSpawnMethod::LightPayload,
     ItemSpawnMethod::PalletItemExtract,
     ItemSpawnMethod::WeaponMagazineExtract,
     ItemSpawnMethod::WeaponPartDetach,
@@ -80,6 +86,8 @@ enum class SpawnScheme {
     Game,
     OnlineRetrieve,
     CorpsePayload,
+    LightPayload,
+    MediaPayload,
 };
 
 SpawnScheme g_spawn_scheme = SpawnScheme::OnlineRetrieve;
@@ -110,9 +118,15 @@ bool MethodEnabled(ItemSpawnMethod method) {
             return method == ItemSpawnMethod::Game;
         case SpawnScheme::CorpsePayload:
             return method == ItemSpawnMethod::CorpsePayload;
+        case SpawnScheme::LightPayload:
+            return method == ItemSpawnMethod::LightPayload;
+        case SpawnScheme::MediaPayload:
+            return method == ItemSpawnMethod::MediaPayload;
         case SpawnScheme::OnlineRetrieve:
             return method != ItemSpawnMethod::Game &&
-                   method != ItemSpawnMethod::CorpsePayload;
+                   method != ItemSpawnMethod::CorpsePayload &&
+                   method != ItemSpawnMethod::LightPayload &&
+                   method != ItemSpawnMethod::MediaPayload;
     }
     return false;
 }
@@ -123,6 +137,19 @@ bool CorpseSchemeSelected() {
 
 bool OnlineRetrieveSchemeSelected() {
     return g_spawn_scheme == SpawnScheme::OnlineRetrieve;
+}
+
+bool LightPayloadSchemeSelected() {
+    return g_spawn_scheme == SpawnScheme::LightPayload;
+}
+
+bool MediaPayloadSchemeSelected() {
+    return g_spawn_scheme == SpawnScheme::MediaPayload;
+}
+
+bool InventoryOnlySchemeSelected() {
+    return OnlineRetrieveSchemeSelected() || LightPayloadSchemeSelected() ||
+        MediaPayloadSchemeSelected();
 }
 
 void SelectSpawnScheme(SpawnScheme scheme) {
@@ -219,6 +246,8 @@ std::string MethodSelectionLabel() {
         case SpawnScheme::Game: return T("游戏原生");
         case SpawnScheme::OnlineRetrieve: return T("联机取物");
         case SpawnScheme::CorpsePayload: return T("尸体载荷");
+        case SpawnScheme::LightPayload: return T("灯具载荷");
+        case SpawnScheme::MediaPayload: return T("媒体载荷");
     }
     return T("游戏原生");
 }
@@ -226,7 +255,7 @@ std::string MethodSelectionLabel() {
 void DrawMethodSelector() {
     const std::string preview = MethodSelectionLabel();
     if (!BeginAnimatedCombo(
-            "##SpawnMethods", preview.c_str(), U(126.0f))) return;
+            "##SpawnMethods", preview.c_str(), U(212.0f))) return;
 
     if (ImGui::Selectable(
             T("游戏原生"), g_spawn_scheme == SpawnScheme::Game)) {
@@ -251,6 +280,22 @@ void DrawMethodSelector() {
     }
     ImGui::SameLine();
     ImGui::TextDisabled("%s", T("在脚下投递服务器僵尸尸体"));
+
+    if (ImGui::Selectable(
+            T("灯具载荷"), g_spawn_scheme == SpawnScheme::LightPayload)) {
+        SelectSpawnScheme(SpawnScheme::LightPayload);
+        CloseAnimatedDropdown();
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", T("需要附近空灯位的可改装灯具"));
+
+    if (ImGui::Selectable(
+            T("媒体载荷"), g_spawn_scheme == SpawnScheme::MediaPayload)) {
+        SelectSpawnScheme(SpawnScheme::MediaPayload);
+        CloseAnimatedDropdown();
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", T("需要装备在主手或副手的便携收音机"));
     EndAnimatedDropdown();
 }
 
@@ -410,6 +455,12 @@ void UpdateActiveStatus() {
         case ItemSpawnMethod::CorpsePayload:
             status = &bridge::GetCorpsePayloadStatus();
             break;
+        case ItemSpawnMethod::LightPayload:
+            status = &bridge::GetLightItemPayloadStatus();
+            break;
+        case ItemSpawnMethod::MediaPayload:
+            status = &bridge::GetMediaItemPayloadStatus();
+            break;
         default:
             break;
     }
@@ -439,10 +490,10 @@ void ExecuteSelected(const std::vector<ItemCatalogEntry>& catalog, int quantity)
         g_status = result.message;
         return;
     }
-    if (OnlineRetrieveSchemeSelected() &&
+    if (InventoryOnlySchemeSelected() &&
         g_destination != ItemSpawnDestination::Backpack) {
         g_destination = ItemSpawnDestination::Backpack;
-        g_status = "联机取物仅支持背包，不能生成到地面";
+        g_status = "当前联机方案仅支持背包，不能生成到地面";
         return;
     }
     const ItemCatalogEntry* item = FindSelectedItem(catalog);
@@ -473,6 +524,9 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     const std::vector<ItemCatalogEntry>& catalog = bridge::GetItemCatalog();
     const bool corpse_scheme = CorpseSchemeSelected();
     const bool online_retrieve_scheme = OnlineRetrieveSchemeSelected();
+    const bool light_payload_scheme = LightPayloadSchemeSelected();
+    const bool media_payload_scheme = MediaPayloadSchemeSelected();
+    const bool inventory_only_scheme = InventoryOnlySchemeSelected();
     const std::vector<std::string> categories = BuildCategories(catalog);
     if (std::find(categories.begin(), categories.end(), g_category) ==
         categories.end()) {
@@ -557,14 +611,14 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
         DestinationButton(
             backpack_label, ItemSpawnDestination::Backpack, backpack_width);
         ImGui::SameLine(0.0f, U(7.0f));
-        if (online_retrieve_scheme) {
+        if (inventory_only_scheme) {
             g_destination = ItemSpawnDestination::Backpack;
             ImGui::BeginDisabled();
             SelectionButton(ground_label, false, ground_width);
             ImGui::EndDisabled();
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
                 ImGui::SetTooltip("%s", T(
-                    "联机取物仅支持背包，不能生成到地面"));
+                    "当前联机方案仅支持背包，不能生成到地面"));
             }
         } else {
             DestinationButton(
@@ -616,6 +670,22 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
             ImGuiCol_Text, ImVec4(1.0f, 0.68f, 0.24f, 0.96f));
         ImGui::TextUnformatted(T(
             "联机取物仅支持背包，不能生成到地面"));
+        ImGui::PopStyleColor();
+    }
+    if (light_payload_scheme) {
+        ImGui::Dummy(ImVec2(0.0f, U(4.0f)));
+        ImGui::PushStyleColor(
+            ImGuiCol_Text, ImVec4(1.0f, 0.68f, 0.24f, 0.96f));
+        ImGui::TextWrapped("%s", T(
+            "要求：附近 2 格内必须有可改装且灯泡槽为空的灯具；请先取下原灯泡，并在执行期间留在灯具旁边。"));
+        ImGui::PopStyleColor();
+    }
+    if (media_payload_scheme) {
+        ImGui::Dummy(ImVec2(0.0f, U(4.0f)));
+        ImGui::PushStyleColor(
+            ImGuiCol_Text, ImVec4(1.0f, 0.68f, 0.24f, 0.96f));
+        ImGui::TextWrapped("%s", T(
+            "要求：便携收音机必须装备在主手或副手；仅放在背包中无法使用。请先取出已有 CD/VHS，执行期间不要换手或卸下。"));
         ImGui::PopStyleColor();
     }
 

@@ -19,7 +19,7 @@ $sources = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter '*.java' | 
 if ($LASTEXITCODE -ne 0) { throw 'Java bridge compilation failed.' }
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'pztrainer\extensions\character_creation.lua') -Destination (Join-Path $buildRoot 'pztrainer\extensions\character_creation.lua')
 $output = Join-Path $repoRoot 'trainer\src\runtime\resources\pztrainer-lua-bridge.jar'
-& $jar --create --file $output -C $buildRoot pztrainer/extensions -C $buildRoot pztrainer/lua
+& $jar --create --file $output -C $buildRoot pztrainer/extensions -C $buildRoot pztrainer/lua -C $buildRoot pztrainer/items
 if ($LASTEXITCODE -ne 0) { throw 'Java bridge packaging failed.' }
 Write-Output "Embedded bridge rebuilt: $output"
 $playerOutput = Join-Path $repoRoot 'trainer\src\runtime\resources\pztrainer-player-overrides.jar'
