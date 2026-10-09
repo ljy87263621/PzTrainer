@@ -20,14 +20,12 @@ $gameCandidates = @(
     $GameRoot,
     $env:PZ_GAME_ROOT,
     $env:PROJECT_ZOMBOID_ROOT,
-    'D:\Apps\Steam\steamapps\common\ProjectZomboid',
     (Join-Path ${env:ProgramFiles(x86)} 'Steam\steamapps\common\ProjectZomboid'),
     (Join-Path $env:ProgramFiles 'Steam\steamapps\common\ProjectZomboid')
 )
 $jdkCandidates = @(
     $JdkRoot,
     $env:PZ_JDK_ROOT,
-    'D:\Develope\Dev_Env\JDK25',
     $env:JAVA_HOME,
     'C:\Program Files\Java\jdk-25'
 )
@@ -38,8 +36,7 @@ $javacPath = if ($resolvedJdkRoot) { Join-Path $resolvedJdkRoot 'bin\\javac.exe'
 $jdkVersion = if ($javacPath -and (Test-Path -LiteralPath $javacPath)) { (& $javacPath -version 2>&1 | Out-String).Trim() } else { $null }
 $jdkMajor = if ($jdkVersion -match '([0-9]+)') { [int]$Matches[1] } else { 0 }
 $msvcWrapper = First-ExistingPath @(
-    $env:PZ_MSVC_WRAPPER,
-    'D:\Develope\Tools\CodexToolchain\codex-msvc.cmd'
+    $env:PZ_MSVC_WRAPPER
 )
 $msbuild = Get-Command msbuild.exe -ErrorAction SilentlyContinue
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'

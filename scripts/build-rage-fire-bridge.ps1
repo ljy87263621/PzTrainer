@@ -1,5 +1,6 @@
-param([string]$JdkRoot = $(if ($env:PZ_JDK_ROOT) { $env:PZ_JDK_ROOT } else { 'D:\Develope\Dev_Env\JDK25' }))
+param([string]$JdkRoot = $env:PZ_JDK_ROOT)
 $ErrorActionPreference = 'Stop'
+if (-not $JdkRoot) { throw 'Set PZ_JDK_ROOT or pass -JdkRoot (JDK 25 or newer).' }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $sourceRoot = Join-Path $repoRoot 'trainer\src\java\pztrainer\player\aim'
 $buildRoot = Join-Path $repoRoot 'obj\rage-fire-java'

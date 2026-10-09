@@ -18,7 +18,7 @@ $env:PZ_JDK_ROOT = 'C:\Program Files\Java\jdk-25'
 .\scripts\check-local-sdk.ps1
 ```
 
-All Java and Viewpoint scripts accept explicit `-GameRoot` and `-JdkRoot` parameters. The default lookup also understands the local convention used by this workstation (`D:\Apps\Steam\steamapps\common\ProjectZomboid` and `D:\Develope\Dev_Env\JDK25`), while environment variables take precedence.
+All Java and Viewpoint scripts accept explicit `-GameRoot` and `-JdkRoot` parameters. Environment variables take precedence when parameters are omitted; no machine-specific path is committed to the repository.
 
 The standard checks are:
 

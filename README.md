@@ -37,7 +37,7 @@ Keep the game installation and JDK outside the repository. Set `PZ_GAME_ROOT` to
 .\scripts\check-local-sdk.ps1
 ```
 
-The repository contains JNI/JVMTI headers under `trainer\third_party\openjdk\include`. Do not copy the proprietary game JAR, game DLLs, or a Viewpoint mod into the repository. The build scripts use `PZ_GAME_ROOT` and `PZ_JDK_ROOT`, with the current machine's conventional locations as fallbacks; see [docs/LOCAL_SDK.md](docs/LOCAL_SDK.md).
+The repository contains JNI/JVMTI headers under `trainer\third_party\openjdk\include`. Do not copy the proprietary game JAR, game DLLs, or a Viewpoint mod into the repository. The build scripts use `PZ_GAME_ROOT` and `PZ_JDK_ROOT`; see [docs/LOCAL_SDK.md](docs/LOCAL_SDK.md).
 
 ## Usage boundary
 

@@ -1,8 +1,10 @@
 param(
-    [string]$GameRoot = $(if ($env:PZ_GAME_ROOT) { $env:PZ_GAME_ROOT } else { 'D:\Apps\Steam\steamapps\common\ProjectZomboid' }),
-    [string]$JdkRoot = $(if ($env:PZ_JDK_ROOT) { $env:PZ_JDK_ROOT } else { 'D:\Develope\Dev_Env\JDK25' })
+    [string]$GameRoot = $env:PZ_GAME_ROOT,
+    [string]$JdkRoot = $env:PZ_JDK_ROOT
 )
 $ErrorActionPreference = 'Stop'
+if (-not $GameRoot) { throw 'Set PZ_GAME_ROOT or pass -GameRoot.' }
+if (-not $JdkRoot) { throw 'Set PZ_JDK_ROOT or pass -JdkRoot (JDK 25 or newer).' }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $JdkRoot) { throw 'Set PZ_JDK_ROOT or pass -JdkRoot (JDK 25 or newer).' }
 $javac = Join-Path $JdkRoot 'bin\javac.exe'

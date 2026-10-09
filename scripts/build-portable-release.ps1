@@ -24,8 +24,6 @@ function Resolve-MSBuild {
         $path = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
         if ($path) { return $path }
     }
-    $managedInstall = 'D:\Develope\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\amd64\MSBuild.exe'
-    if (Test-Path $managedInstall) { return $managedInstall }
     throw 'MSBuild.exe was not found. Install Visual Studio C++ build tools or add MSBuild to PATH.'
 }
 
