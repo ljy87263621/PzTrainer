@@ -1,4 +1,4 @@
-param([string]$JdkRoot = 'F:\java21')
+param([string]$JdkRoot = $(if ($env:PZ_JDK_ROOT) { $env:PZ_JDK_ROOT } else { 'D:\Develope\Dev_Env\JDK25' }))
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $sourceRoot = Join-Path $repoRoot 'trainer\src\java\pztrainer\player\aim'

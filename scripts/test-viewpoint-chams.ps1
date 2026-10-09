@@ -1,12 +1,13 @@
 param(
     [Parameter(Mandatory = $true)][string]$ViewpointJar,
-    [string]$JdkRoot = 'F:\java21'
+    [string]$GameRoot = $(if ($env:PZ_GAME_ROOT) { $env:PZ_GAME_ROOT } else { 'D:\Apps\Steam\steamapps\common\ProjectZomboid' }),
+    [string]$JdkRoot = $(if ($env:PZ_JDK_ROOT) { $env:PZ_JDK_ROOT } else { 'D:\Develope\Dev_Env\JDK25' })
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$gameRoot = Split-Path -Parent $repoRoot
+$gameRoot = $GameRoot
 $buildRoot = Join-Path $repoRoot 'obj\viewpoint-chams-java'
-& (Join-Path $PSScriptRoot 'build-viewpoint-chams.ps1') -JdkRoot $JdkRoot
+& (Join-Path $PSScriptRoot 'build-viewpoint-chams.ps1') -GameRoot $GameRoot -JdkRoot $JdkRoot
 $classPath = "$buildRoot;$(Join-Path $repoRoot 'trainer\src\runtime\resources\pztrainer-player-overrides.jar');$(Join-Path $gameRoot 'projectzomboid.jar');$ViewpointJar"
 $sources = @('ViewpointModelChamsTest.java', 'ViewpointChamsGlStateTest.java', 'ViewpointChamsRenderTest.java') | ForEach-Object { Join-Path $repoRoot "trainer\tests\$_" }
 & (Join-Path $JdkRoot 'bin\javac.exe') --release 17 -encoding UTF-8 -cp $classPath -d $buildRoot @sources

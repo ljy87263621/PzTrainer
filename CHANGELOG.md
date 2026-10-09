@@ -1,3 +1,9 @@
+# Unreleased source baseline
+
+- Added responsive item quantity controls with bounded step buttons, Ctrl fast-step support, and offline layout/interaction coverage.
+- Added light and media payload routes with Java/C++ bridge validation and inventory-only destination handling.
+- Added a local SDK check script and unified `PZ_GAME_ROOT`/`PZ_JDK_ROOT` discovery for Java and Viewpoint scripts.
+
 # v1.0.0-beta.2
 
 Second public beta release, including the merged Viewpoint 3D compatibility work and configurable rage weapon modifiers.

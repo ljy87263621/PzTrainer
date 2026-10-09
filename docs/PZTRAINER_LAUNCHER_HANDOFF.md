@@ -1,6 +1,6 @@
 # PzTrainer Launcher handoff
 
-The launcher is now part of the root PzTrainer repository. Its source lives in `launcher/`, while the trainer project lives in `trainer/`. The root `pztrainer_launcher.vcxproj` builds the trainer project first and embeds `bin\x64\Release\pztrainer.dll` through `launcher\launcher_resources.rc`.
+The launcher is part of the root PzTrainer repository. Its source lives in `launcher/`, while the trainer project lives in `trainer/`. The root `pztrainer_launcher.vcxproj` builds the trainer project first and embeds `bin\x64\Release\pztrainer.dll` through `launcher\launcher_resources.rc`.
 
 The runtime flow is:
 
@@ -20,3 +20,5 @@ The default build does not require VMProtect. Protected marker builds require a 
 The manual mapper remains a high-risk runtime boundary. Do not alter its PE relocation, import, TLS, exception, or section-protection logic without a dedicated test plan and an in-process validation pass. The launcher currently identifies the target by `ProjectZomboid64.exe`; game updates or multiple matching processes can make injection fail or require further hardening.
 
 The portable release is a beta artifact for authorized single-player use. It has not been validated against every Project Zomboid update and should be hash-checked before execution.
+
+Before a source build, run `scripts\check-local-sdk.ps1`. The launcher does not package the game, JVM, or Viewpoint mod; those remain external runtime dependencies.

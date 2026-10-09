@@ -27,6 +27,18 @@ The script is the default marker-disabled developer build. The published beta.2 
 
 The trainer includes optional Viewpoint 3D compatibility. When a compatible Viewpoint mod is installed in the target Project Zomboid build, the visual page exposes 3D ESP for zombies, players, animals, and vehicles, and the aim pages expose separate 3D Legit/Rage switches. The portable package embeds the bridge and Java helper but does not redistribute the third-party Viewpoint mod.
 
+The current source baseline also contains responsive item quantity controls and the light/media payload routes. These changes are in the source tree and validation builds; they are separate from the already published beta.2 artifact until a new release is cut.
+
+## Local SDK
+
+Keep the game installation and JDK outside the repository. Set `PZ_GAME_ROOT` to the Project Zomboid directory containing `projectzomboid.jar` and set `PZ_JDK_ROOT` to a JDK 25 directory containing `javac.exe` and `jar.exe`. Check the complete local setup with:
+
+```powershell
+.\scripts\check-local-sdk.ps1
+```
+
+The repository contains JNI/JVMTI headers under `trainer\third_party\openjdk\include`. Do not copy the proprietary game JAR, game DLLs, or a Viewpoint mod into the repository. The build scripts use `PZ_GAME_ROOT` and `PZ_JDK_ROOT`, with the current machine's conventional locations as fallbacks; see [docs/LOCAL_SDK.md](docs/LOCAL_SDK.md).
+
 ## Usage boundary
 
 The launcher is intended for the user's own local x64 Project Zomboid process and single-player testing. It requires administrator privileges because manual mapping writes into another process. Do not use it against systems or processes without authorization, and expect game updates or anti-cheat software to make a build incompatible.

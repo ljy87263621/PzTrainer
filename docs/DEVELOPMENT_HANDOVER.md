@@ -8,12 +8,15 @@
 - `launcher/`: Win32 launcher, manual mapper, resources, and UI.
 - `pztrainer_launcher.vcxproj`: launcher project at repository root.
 - `scripts/build-portable-release.ps1`: trainer-first portable build.
+- `scripts/check-local-sdk.ps1`: verifies the external game/JDK/toolchain inputs without copying them into the repository.
 
 ## Build contract
 
 Both projects use C++17 and the `v145` x64 toolset. The trainer output is written to `bin\x64\Release\pztrainer.dll`; the launcher resource compiler reads that exact file and produces `bin\x64\Release\pztrainer_launcher.exe`.
 
 VMProtect markers are opt-in. The SDK path is supplied with `VMP_ROOT` or the `VmProtectRoot` MSBuild property. No user-specific path is committed to the project files.
+
+Java bridge scripts use `PZ_GAME_ROOT` and `PZ_JDK_ROOT`. Run `scripts\check-local-sdk.ps1` before Java or JVM tests. The repository supplies JNI/JVMTI headers; the game JAR, game DLLs, JDK, and optional Viewpoint mod remain external.
 
 ## Runtime contract
 

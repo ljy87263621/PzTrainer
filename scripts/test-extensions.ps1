@@ -1,6 +1,6 @@
 param(
-    [string]$GameRoot = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
-    [string]$JdkRoot = $env:JAVA_HOME
+    [string]$GameRoot = $(if ($env:PZ_GAME_ROOT) { $env:PZ_GAME_ROOT } else { 'D:\Apps\Steam\steamapps\common\ProjectZomboid' }),
+    [string]$JdkRoot = $(if ($env:PZ_JDK_ROOT) { $env:PZ_JDK_ROOT } else { 'D:\Develope\Dev_Env\JDK25' })
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
