@@ -23,7 +23,9 @@ public final class LightItemPayload {
                 if (dx * dx + dy * dy > SEARCH_RADIUS * SEARCH_RADIUS) continue;
                 IsoGridSquare square = player.getCell().getGridSquare(x, y, pz);
                 if (square == null) continue;
-                for (IsoObject object : square.getObjects()) {
+                var objects = square.getObjects();
+                for (int index = 0; index < objects.size(); index++) {
+                    IsoObject object = objects.get(index);
                     if (object instanceof IsoLightSwitch light &&
                             light.getObjectIndex() != -1 &&
                             light.getCanBeModified() && !light.getLights().isEmpty() &&
