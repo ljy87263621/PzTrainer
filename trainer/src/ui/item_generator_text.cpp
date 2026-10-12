@@ -34,6 +34,19 @@ constexpr std::array<CategoryLabel, 18> kChineseCategories{{
     {"Junk", "杂物"},
 }};
 
+struct MethodDescription {
+    std::string_view method;
+    std::string_view description;
+};
+
+constexpr std::array<MethodDescription, 5> kMethodDescriptions{{
+    {"游戏原生", "仅单机，支持全部物品"},
+    {"联机取物", "自动选择可用联机路径，仅支持背包"},
+    {"尸体载荷", "在脚下投递服务器僵尸尸体"},
+    {"灯具载荷", "需要附近空灯位的可改装灯具"},
+    {"媒体载荷", "需要装备在主手或副手的便携收音机"},
+}};
+
 }  // namespace
 
 const char* ItemCategoryLabel(const std::string& category) {
@@ -43,6 +56,20 @@ const char* ItemCategoryLabel(const std::string& category) {
         }
     }
     return settings::Translate(category.c_str());
+}
+
+const char* ItemSpawnMethodDescription(const std::string& method) {
+    for (const MethodDescription& description : kMethodDescriptions) {
+        if (method == description.method) {
+            return settings::Translate(std::string(description.description).c_str());
+        }
+    }
+    return settings::Translate(method.c_str());
+}
+
+float ItemSpawnMethodPopupWidth(float available_width) {
+    if (available_width <= 0.0f) return 0.0f;
+    return std::min(480.0f, std::max(280.0f, available_width - 8.0f));
 }
 
 }  // namespace pztrainer::ui

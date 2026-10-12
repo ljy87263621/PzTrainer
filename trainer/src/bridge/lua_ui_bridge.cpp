@@ -18,6 +18,7 @@
 #include "settings/ui_preferences.hpp"
 #include "bridge/item_bridge.hpp"
 #include "bridge/lua_feature_registry.hpp"
+#include "bridge/viewpoint_bridge.hpp"
 #include "ui/components.hpp"
 #include "ui/lua_item_multiselect.hpp"
 #include "ui/theme.hpp"
@@ -34,6 +35,7 @@ constexpr std::int64_t kItemsCatalogFunction = 5;
 constexpr std::int64_t kCheatListFunction = 6;
 constexpr std::int64_t kCheatGetFunction = 7;
 constexpr std::int64_t kCheatSetFunction = 8;
+constexpr std::int64_t kWorldToScreenFunction = 9;
 constexpr std::int64_t kCategoryToggle = 0x100;
 constexpr std::int64_t kCategorySlider = 0x101;
 constexpr std::int64_t kCategoryAimMode = 0x102;
@@ -419,13 +421,16 @@ bool InstallNamespace(JNIEnv* env) {
     jobject imgui = env->CallObjectMethod(g_bindings.platform_instance, g_bindings.new_table);
     jobject items = env->CallObjectMethod(g_bindings.platform_instance, g_bindings.new_table);
     jobject cheat = env->CallObjectMethod(g_bindings.platform_instance, g_bindings.new_table);
-    if (pzsa == nullptr || ui == nullptr || imgui == nullptr || items == nullptr || cheat == nullptr ||
+    jobject world = env->CallObjectMethod(g_bindings.platform_instance, g_bindings.new_table);
+    if (pzsa == nullptr || ui == nullptr || imgui == nullptr || items == nullptr ||
+        cheat == nullptr || world == nullptr ||
         ClearException(env)) {
         if (pzsa != nullptr) env->DeleteLocalRef(pzsa);
         if (ui != nullptr) env->DeleteLocalRef(ui);
         if (imgui != nullptr) env->DeleteLocalRef(imgui);
         if (items != nullptr) env->DeleteLocalRef(items);
         if (cheat != nullptr) env->DeleteLocalRef(cheat);
+        if (world != nullptr) env->DeleteLocalRef(world);
         return false;
     }
     if (!InstallFunction(env, pzsa, "version", kVersionFunction) ||
@@ -433,6 +438,7 @@ bool InstallNamespace(JNIEnv* env) {
         !TableSet(env, pzsa, "imgui", imgui) ||
         !TableSet(env, pzsa, "items", items) ||
         !TableSet(env, pzsa, "cheat", cheat) ||
+        !TableSet(env, pzsa, "world", world) ||
         !InstallFunction(env, ui, "category", kCategoryFunction) ||
         !InstallFunction(env, ui, "icon", kIconFunction) ||
         !InstallFunction(env, imgui, "window", kWindowFunction) ||
@@ -440,8 +446,10 @@ bool InstallNamespace(JNIEnv* env) {
         !InstallFunction(env, cheat, "list", kCheatListFunction) ||
         !InstallFunction(env, cheat, "get", kCheatGetFunction) ||
         !InstallFunction(env, cheat, "set", kCheatSetFunction) ||
+        !InstallFunction(env, world, "to_screen", kWorldToScreenFunction) ||
         !TableSet(env, g_bindings.environment, "PZSA", pzsa)) {
         env->DeleteLocalRef(cheat);
+        env->DeleteLocalRef(world);
         env->DeleteLocalRef(items);
         env->DeleteLocalRef(imgui);
         env->DeleteLocalRef(ui);
@@ -449,6 +457,7 @@ bool InstallNamespace(JNIEnv* env) {
         return false;
     }
     env->DeleteLocalRef(cheat);
+    env->DeleteLocalRef(world);
     env->DeleteLocalRef(items);
     env->DeleteLocalRef(imgui);
     env->DeleteLocalRef(ui);
@@ -467,6 +476,45 @@ jint JNICALL Dispatch(JNIEnv* env, jclass, jlong function_id,
         const jint result = push == nullptr ? 0 : env->CallIntMethod(frame, push, version);
         env->DeleteLocalRef(version);
         return ClearException(env) ? 0 : result;
+    }
+    if (function_id == kWorldToScreenFunction) {
+        jclass frame_class = env->GetObjectClass(frame);
+        const jmethodID get = env->GetMethodID(
+            frame_class, "get", "(I)Ljava/lang/Object;");
+        const jmethodID push = env->GetMethodID(
+            frame_class, "push", "(Ljava/lang/Object;)I");
+        const auto number_argument = [&](int index) {
+            jobject value = get == nullptr
+                ? nullptr : env->CallObjectMethod(frame, get, index);
+            const double number = NumberValue(env, value, 0.0);
+            if (value != nullptr) env->DeleteLocalRef(value);
+            return static_cast<float>(number);
+        };
+        jobject result = env->CallObjectMethod(
+            g_bindings.platform_instance, g_bindings.new_table);
+        if (result == nullptr || get == nullptr || push == nullptr ||
+            argument_count < 3 || ClearException(env)) {
+            if (result != nullptr) env->DeleteLocalRef(result);
+            if (frame_class != nullptr) env->DeleteLocalRef(frame_class);
+            return 0;
+        }
+        const ViewpointStatus& status = GetViewpointStatus();
+        const bool active = IsViewpointActive() && status.detected &&
+            status.ready && status.mod_enabled;
+        ScreenPoint screen{};
+        const bool visible = active && status.camera_valid &&
+            ProjectViewpointWorldPoint(
+                {number_argument(0), number_argument(1), number_argument(2)},
+                screen);
+        TableSetBoolean(env, result, "active", active);
+        TableSetBoolean(env, result, "ready", active && status.camera_valid);
+        TableSetBoolean(env, result, "visible", visible);
+        TableSetNumber(env, result, "x", screen.x);
+        TableSetNumber(env, result, "y", screen.y);
+        const jint pushed = env->CallIntMethod(frame, push, result);
+        env->DeleteLocalRef(result);
+        env->DeleteLocalRef(frame_class);
+        return ClearException(env) ? 0 : pushed;
     }
     if (function_id == kCheatListFunction) {
         jclass frame_class = env->GetObjectClass(frame);

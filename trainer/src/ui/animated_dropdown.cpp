@@ -95,18 +95,20 @@ bool BeginAnimatedDropdownPopup(ImGuiID id, const ImVec2& anchor_minimum,
         return false;
     }
 
-    const float full_width = popup_size.x > 0.0f
-        ? popup_size.x : anchor_maximum.x - anchor_minimum.x;
-    const float full_height = std::max(U(1.0f), popup_size.y);
-    const float animated_height = std::max(U(1.0f), full_height * amount);
-    ImVec2 position(
-        anchor_minimum.x,
-        anchor_maximum.y + U(5.0f) - (1.0f - amount) * U(7.0f));
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     const ImVec2 work_minimum = viewport->WorkPos;
     const ImVec2 work_maximum(
         viewport->WorkPos.x + viewport->WorkSize.x,
         viewport->WorkPos.y + viewport->WorkSize.y);
+    const float requested_width = popup_size.x > 0.0f
+        ? popup_size.x : anchor_maximum.x - anchor_minimum.x;
+    const float full_width = std::min(
+        requested_width, std::max(U(1.0f), work_maximum.x - work_minimum.x - U(8.0f)));
+    const float full_height = std::max(U(1.0f), popup_size.y);
+    const float animated_height = std::max(U(1.0f), full_height * amount);
+    ImVec2 position(
+        anchor_minimum.x,
+        anchor_maximum.y + U(5.0f) - (1.0f - amount) * U(7.0f));
     position.x = std::clamp(
         position.x, work_minimum.x + U(4.0f),
         std::max(work_minimum.x + U(4.0f),

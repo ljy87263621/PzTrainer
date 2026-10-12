@@ -38,6 +38,7 @@ using namespace components;
 
 constexpr float kCardHeight = 136.0f;
 constexpr float kCardGap = 10.0f;
+constexpr float kMethodPopupHeight = 300.0f;
 constexpr std::size_t kMethodCount = 11;
 
 struct MethodInfo {
@@ -255,48 +256,28 @@ std::string MethodSelectionLabel() {
 
 void DrawMethodSelector() {
     const std::string preview = MethodSelectionLabel();
+    const float popup_width = ItemSpawnMethodPopupWidth(
+        ImGui::GetContentRegionAvail().x / std::max(0.01f, settings::UiScale()));
     if (!BeginAnimatedCombo(
-            "##SpawnMethods", preview.c_str(), U(212.0f))) return;
+            "##SpawnMethods", preview.c_str(), U(kMethodPopupHeight),
+            U(popup_width))) return;
 
-    if (ImGui::Selectable(
-            T("游戏原生"), g_spawn_scheme == SpawnScheme::Game)) {
-        SelectSpawnScheme(SpawnScheme::Game);
-        CloseAnimatedDropdown();
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", T("仅单机，支持全部物品"));
-
-    if (ImGui::Selectable(
-            T("联机取物"), g_spawn_scheme == SpawnScheme::OnlineRetrieve)) {
-        SelectSpawnScheme(SpawnScheme::OnlineRetrieve);
-        CloseAnimatedDropdown();
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", T("自动选择可用联机路径，仅支持背包"));
-
-    if (ImGui::Selectable(
-            T("尸体载荷"), g_spawn_scheme == SpawnScheme::CorpsePayload)) {
-        SelectSpawnScheme(SpawnScheme::CorpsePayload);
-        CloseAnimatedDropdown();
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", T("在脚下投递服务器僵尸尸体"));
-
-    if (ImGui::Selectable(
-            T("灯具载荷"), g_spawn_scheme == SpawnScheme::LightPayload)) {
-        SelectSpawnScheme(SpawnScheme::LightPayload);
-        CloseAnimatedDropdown();
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", T("需要附近空灯位的可改装灯具"));
-
-    if (ImGui::Selectable(
-            T("媒体载荷"), g_spawn_scheme == SpawnScheme::MediaPayload)) {
-        SelectSpawnScheme(SpawnScheme::MediaPayload);
-        CloseAnimatedDropdown();
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", T("需要装备在主手或副手的便携收音机"));
+    const auto option = [&](const char* source_label, SpawnScheme scheme) {
+        if (ImGui::Selectable(T(source_label), g_spawn_scheme == scheme)) {
+            SelectSpawnScheme(scheme);
+            CloseAnimatedDropdown();
+        }
+        ImGui::SameLine();
+        ImGui::PushTextWrapPos(
+            ImGui::GetWindowPos().x + ImGui::GetWindowSize().x - U(8.0f));
+        ImGui::TextDisabled("%s", ItemSpawnMethodDescription(source_label));
+        ImGui::PopTextWrapPos();
+    };
+    option("游戏原生", SpawnScheme::Game);
+    option("联机取物", SpawnScheme::OnlineRetrieve);
+    option("尸体载荷", SpawnScheme::CorpsePayload);
+    option("灯具载荷", SpawnScheme::LightPayload);
+    option("媒体载荷", SpawnScheme::MediaPayload);
     EndAnimatedDropdown();
 }
 
@@ -692,6 +673,14 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     }
     ImGui::SetNextItemWidth(std::min(method_width, control_width));
     DrawMethodSelector();
+
+    // The method list is a floating window. Reserve its full downward extent
+    // in the card while it is open so the execute button and item cards stay
+    // reachable instead of sitting underneath the popup.
+    if (!wrap_filters &&
+        IsAnimatedDropdownOpen(AnimatedDropdownId("##SpawnMethods"))) {
+        ImGui::Dummy(ImVec2(0.0f, U(kMethodPopupHeight + 12.0f)));
+    }
 
     if (!wrap_filters) {
         ImGui::Dummy(ImVec2(0.0f, U(6.0f)));
