@@ -13,6 +13,7 @@ struct ViewpointModelChamsStatus {
 
 void DrawViewpointModelChams(const std::array<ImVec4, 12>& markers,
                             const std::array<ImVec4, 12>& colors);
+void ResetViewpointModelChamsStatus(const std::string& message);
 const ViewpointModelChamsStatus& GetViewpointModelChamsStatus();
 
 }  // namespace pztrainer::features::visual

@@ -594,6 +594,23 @@ void DrawSpawnControls(const std::vector<ItemCatalogEntry>& catalog,
     ImGui::EndDisabled();
 }
 
+void DrawRefreshButton() {
+    const ImVec2 content_cursor = ImGui::GetCursorPos();
+    const float refresh_width = TextControlWidth(T("刷新物品列表"), 132.0f, 24.0f);
+    const float refresh_right = ImGui::GetCursorPosX() +
+        ImGui::GetContentRegionAvail().x;
+    ImGui::SameLine(refresh_right - refresh_width);
+    if (controls::ActionButton("刷新物品列表")) {
+        if (bridge::ForceRefreshItemCatalog()) {
+            g_status = "物品列表已刷新";
+            ClearCorpsePayloadSelection();
+        } else {
+            g_status = "物品列表刷新失败，已保留当前列表";
+        }
+    }
+    ImGui::SetCursorPos(content_cursor);
+}
+
 }  // namespace
 
 void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
@@ -601,6 +618,7 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     ApplySessionDefault();
     UpdateActiveStatus();
     if (!bridge::RefreshItemCatalog()) {
+        DrawRefreshButton();
         SectionLabel("物品生成");
         ImGui::TextUnformatted(settings::Translate(
             "正在读取游戏物品目录，请稍后重试。"));
@@ -622,6 +640,7 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     SectionLabel("物品筛选与生成");
     ImGui::Dummy(ImVec2(0.0f, U(3.0f)));
     BeginCard("ItemGeneratorControls", nullptr, ImVec2(0.0f, 0.0f));
+    DrawRefreshButton();
     const float control_width = ImGui::GetContentRegionAvail().x;
     const float control_right = ImGui::GetCursorScreenPos().x + control_width;
     const char* category_preview = ItemCategoryLabel(g_category);

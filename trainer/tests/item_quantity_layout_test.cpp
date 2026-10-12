@@ -63,6 +63,7 @@ bool DrawColorSwatch(const char*, features::visual::StateColor*, const ImVec2&) 
 }
 namespace pztrainer::bridge {
 bool RefreshItemCatalog() { return true; }
+bool ForceRefreshItemCatalog() { return true; }
 ItemSessionMode GetItemSessionMode() { return ItemSessionMode::Local; }
 const std::vector<ItemCatalogEntry>& GetItemCatalog() {
     static const std::vector<ItemCatalogEntry> catalog = [] {

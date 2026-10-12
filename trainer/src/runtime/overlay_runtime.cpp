@@ -513,23 +513,30 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             vehicle_visual_settings.max_distance,
             vehicle_model_visual);
         const auto& viewpoint_settings = bridge::GetViewpointSettings();
+        const auto& viewpoint_status = bridge::GetViewpointStatus();
         const bool viewpoint_active = bridge::IsViewpointActive();
+        const bool viewpoint_camera_ready =
+            viewpoint_active && bridge::CanUseViewpoint3D(
+                viewpoint_settings, viewpoint_status);
         bridge::FrameSnapshot viewpoint_frame;
-        if (viewpoint_active && (viewpoint_settings.esp_3d ||
+        if (viewpoint_camera_ready && (viewpoint_settings.esp_3d ||
             viewpoint_settings.legit_3d || viewpoint_settings.rage_3d)) {
             viewpoint_frame = bridge::MakeViewpointFrame(frame);
         }
-        const auto& esp_frame = viewpoint_active && viewpoint_settings.esp_3d
+        const auto& esp_frame = bridge::UseViewpointEsp(
+            viewpoint_settings, viewpoint_status)
             ? viewpoint_frame : frame;
         features::visual::UpdateWeaponRay(
             frame.gate_status == bridge::GateStatus::SinglePlayerAllowed);
         bridge::UpdateFastAimingDelay(frame.gate_status == bridge::GateStatus::SinglePlayerAllowed);
         features::aim::UpdateLegitAim(
-            viewpoint_active && viewpoint_settings.legit_3d ? viewpoint_frame : frame,
+            viewpoint_camera_ready && viewpoint_settings.legit_3d
+                ? viewpoint_frame : frame,
             g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
             ImGui::GetIO().DisplaySize.y, ImGui::GetIO().DeltaTime);
         features::aim::UpdateRageAim(
-            viewpoint_active && viewpoint_settings.rage_3d ? viewpoint_frame : frame,
+            viewpoint_camera_ready && viewpoint_settings.rage_3d
+                ? viewpoint_frame : frame,
             g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
             ImGui::GetIO().DisplaySize.y);
         const features::aim::LegitAimStatus& legit_status =

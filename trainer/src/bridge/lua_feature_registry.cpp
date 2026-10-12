@@ -16,6 +16,7 @@
 #include "bridge/player_movement_bridge.hpp"
 #include "bridge/player_resource_bridge.hpp"
 #include "bridge/player_teleport_bridge.hpp"
+#include "bridge/viewpoint_bridge.hpp"
 #include "bridge/world_map_reveal_bridge.hpp"
 #include "bridge/world_map_player_bridge.hpp"
 #include "bridge/world_visual_bridge.hpp"
@@ -461,6 +462,35 @@ void AddVisualFeatures(std::vector<Entry>& entries) {
     WeaponRaySettings& ray = GetWeaponRaySettings();
     AddBool(entries, "world.weapon_ray.enabled", "world.visual", "显示枪口射线", &ray.enabled);
     AddColor(entries, "world.weapon_ray.color", "world.visual", "枪口射线颜色", &ray.color);
+
+    ViewpointSettings& viewpoint = GetViewpointSettings();
+    const AvailabilityGetter viewpoint_availability = [] {
+        const auto& status = GetViewpointStatus();
+        const bool available = ViewpointBridgeReady(GetViewpointSettings(), status);
+        return Availability{available, available ? std::string{} : status.message};
+    };
+    AddBoolCallback(
+        entries, "visual.viewpoint.compatibility_mode", "visual.viewpoint",
+        "ViewPoint Mod 兼容模式",
+        [&viewpoint] { return viewpoint.compatibility_mode; },
+        &SetViewpointCompatibilityMode,
+        [] {
+            const auto& status = GetViewpointStatus();
+            const bool available = status.detected && status.ready;
+            return Availability{available, available ? std::string{} : status.message};
+        });
+    AddBoolCallback(
+        entries, "visual.viewpoint.esp_3d", "visual.viewpoint",
+        "ViewPoint 3D ESP", [&viewpoint] { return viewpoint.esp_3d; },
+        [&viewpoint](bool enabled) { viewpoint.esp_3d = enabled; }, viewpoint_availability);
+    AddBoolCallback(
+        entries, "visual.viewpoint.legit_3d", "visual.viewpoint",
+        "Legit 3D 模式（ViewPoint）", [&viewpoint] { return viewpoint.legit_3d; },
+        [&viewpoint](bool enabled) { viewpoint.legit_3d = enabled; }, viewpoint_availability);
+    AddBoolCallback(
+        entries, "visual.viewpoint.rage_3d", "visual.viewpoint",
+        "Rage 3D 模式（ViewPoint）", [&viewpoint] { return viewpoint.rage_3d; },
+        [&viewpoint](bool enabled) { viewpoint.rage_3d = enabled; }, viewpoint_availability);
 }
 
 Availability AvailableWhen(bool available, const std::string& reason) {

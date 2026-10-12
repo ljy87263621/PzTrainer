@@ -1223,9 +1223,26 @@ void NativeModelChams::Replay(
         const PlayerVisualSettings& player_settings,
         const AnimalVisualSettings& animal_settings,
         const VehicleVisualSettings& vehicle_settings) {
+    const auto& viewpoint_settings = bridge::GetViewpointSettings();
+    const auto& viewpoint_status = bridge::GetViewpointStatus();
+    const bool viewpoint_active = bridge::IsViewpointActive();
+    const bool viewpoint_esp = bridge::UseViewpointEsp(
+        viewpoint_settings, viewpoint_status);
+    if (!bridge::CanUseViewpoint3D(viewpoint_settings, viewpoint_status)) {
+        ResetViewpointModelChamsStatus(viewpoint_status.message);
+    } else if (!viewpoint_esp) {
+        ResetViewpointModelChamsStatus("ViewPoint 3D ESP 已关闭");
+    } else if (frame.gate_status != bridge::GateStatus::SinglePlayerAllowed) {
+        ResetViewpointModelChamsStatus("3D 模型上色仅在单人模式可用");
+    }
     const std::uintptr_t capture_context =
         g_capture_context.load(std::memory_order_acquire);
-    if (capture_context == 0 || CurrentRenderContext() != capture_context) return;
+    if (capture_context == 0 || CurrentRenderContext() != capture_context) {
+        if (viewpoint_esp && frame.gate_status == bridge::GateStatus::SinglePlayerAllowed) {
+            ResetViewpointModelChamsStatus("等待 ViewPoint 3D 模型渲染接口");
+        }
+        return;
+    }
     g_capture_enabled.store(false, std::memory_order_release);
     const bool zombie_models = settings.zombie_esp &&
         settings.model_effect != ZombieModelEffect::Disabled;
@@ -1235,9 +1252,17 @@ void NativeModelChams::Replay(
         animal_settings.model_effect != ZombieModelEffect::Disabled;
     const bool vehicle_models = vehicle_settings.vehicle_esp &&
         vehicle_settings.model_effect != ZombieModelEffect::Disabled;
+    if (viewpoint_esp &&
+        !zombie_models && !player_models && !animal_models && !vehicle_models) {
+        ResetViewpointModelChamsStatus("请启用实体透视并选择模型效果");
+    }
     if (!g_initialized ||
         (!zombie_models && !player_models && !animal_models && !vehicle_models) ||
         frame.gate_status != bridge::GateStatus::SinglePlayerAllowed) {
+        if (viewpoint_esp && !g_initialized &&
+            frame.gate_status == bridge::GateStatus::SinglePlayerAllowed) {
+            ResetViewpointModelChamsStatus("等待 ViewPoint 3D 模型渲染接口");
+        }
         std::lock_guard<std::mutex> command_lock(g_commands_mutex);
         g_commands.clear();
         return;
@@ -1248,7 +1273,8 @@ void NativeModelChams::Replay(
         std::lock_guard<std::mutex> command_lock(g_commands_mutex);
         replay_commands.swap(g_commands);
     }
-    if (bridge::IsViewpointActive()) {
+    if (viewpoint_active) {
+        if (!viewpoint_esp) return;
         if (g_capture_target_colors_ready) {
             std::array<ImVec4, 12> colors{};
             for (std::size_t index = 0; index < colors.size(); ++index) {
@@ -1262,6 +1288,8 @@ void NativeModelChams::Replay(
                 colors[index] = EffectColor(g_capture_fill_colors[index], effect, index);
             }
             DrawViewpointModelChams(g_capture_target_colors, colors);
+        } else {
+            ResetViewpointModelChamsStatus("等待带有上色标记的 3D 模型");
         }
         return;
     }

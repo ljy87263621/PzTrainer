@@ -30,6 +30,7 @@ struct Bindings {
 Bindings g_bindings;
 ViewpointCamera g_camera;
 ViewpointSettings g_settings;
+ViewpointStatus g_status;
 bool g_active = false;
 bool g_loaded = false;
 std::chrono::steady_clock::time_point g_next_probe{};
@@ -74,6 +75,7 @@ bool Initialize(JNIEnv* env) {
         return false;
     }
     g_loaded = true;
+    g_status.detected = true;
     jclass look = load("viewpoint.input.Look");
     jclass renderer = load("viewpoint.render.WorldRenderer");
     jclass context = load("viewpoint.render.FrameContext");
@@ -81,6 +83,8 @@ bool Initialize(JNIEnv* env) {
     jclass matrix = load("org.joml.Matrix4f");
     if (look == nullptr || renderer == nullptr || context == nullptr ||
         scene == nullptr || matrix == nullptr) {
+        g_status.ready = false;
+        g_status.message = "已检测到 ViewPoint Mod，但兼容接口不完整";
         env->PopLocalFrame(nullptr);
         return false;
     }
@@ -104,6 +108,8 @@ bool Initialize(JNIEnv* env) {
         bindings.elements[index] = env->GetFieldID(matrix, name.c_str(), "F");
     }
     if (ClearException(env)) {
+        g_status.ready = false;
+        g_status.message = "已检测到 ViewPoint Mod，但兼容接口版本不匹配";
         env->PopLocalFrame(nullptr);
         return false;
     }
@@ -111,6 +117,7 @@ bool Initialize(JNIEnv* env) {
     bindings.look = static_cast<jclass>(env->NewGlobalRef(look));
     bindings.renderer = static_cast<jclass>(env->NewGlobalRef(renderer));
     g_bindings = bindings;
+    g_status.ready = true;
     env->PopLocalFrame(nullptr);
     return true;
 }
@@ -138,17 +145,42 @@ void ProjectCharacter(Snapshot& target, float height) {
 void RefreshViewpointCamera(JNIEnv* env, float viewport_width, float viewport_height) {
     g_active = false;
     g_camera.valid = false;
-    if (env == nullptr || !Initialize(env)) return;
-    g_active = env->GetStaticBooleanField(g_bindings.view, g_bindings.enabled) == JNI_TRUE;
-    if (ClearException(env) || !g_active) return;
+    g_status.compatibility_mode = g_settings.compatibility_mode;
+    g_status.mod_enabled = false;
+    g_status.camera_valid = false;
+    if (env == nullptr) {
+        g_status.message = "等待游戏 Java 环境";
+        return;
+    }
+    if (!Initialize(env)) {
+        if (!g_status.detected) g_status.message = "未检测到 ViewPoint Mod";
+        return;
+    }
+    bool mod_enabled = env->GetStaticBooleanField(g_bindings.view, g_bindings.enabled) == JNI_TRUE;
+    if (ClearException(env)) {
+        g_status.message = "读取 ViewPoint Mod 状态失败";
+        return;
+    }
+    g_status.mod_enabled = mod_enabled;
+    g_active = mod_enabled;
+    if (!g_active) {
+        g_status.message = "ViewPoint Mod 未启用";
+        return;
+    }
+    if (!g_settings.compatibility_mode) {
+        g_status.message = "ViewPoint Mod 已启用，兼容模式已关闭";
+        return;
+    }
     if (env->PushLocalFrame(3) != JNI_OK) {
         ClearException(env);
+        g_status.message = "ViewPoint 已启用，但无法读取渲染相机";
         return;
     }
     jobject frame = env->GetStaticObjectField(g_bindings.renderer, g_bindings.frame);
     jobject scene = frame == nullptr ? nullptr : env->GetObjectField(frame, g_bindings.scene);
     jobject matrix = frame == nullptr ? nullptr : env->GetObjectField(frame, g_bindings.matrix);
     if (ClearException(env) || scene == nullptr || matrix == nullptr) {
+        g_status.message = "ViewPoint 已启用，等待有效渲染帧";
         env->PopLocalFrame(nullptr);
         return;
     }
@@ -165,12 +197,27 @@ void RefreshViewpointCamera(JNIEnv* env, float viewport_width, float viewport_he
         finite = finite && std::isfinite(g_camera.view_projection[index]);
     }
     g_camera.valid = !ClearException(env) && finite;
+    g_status.camera_valid = g_camera.valid;
+    g_status.message = g_camera.valid
+        ? "ViewPoint 兼容模式已启用"
+        : "ViewPoint 已启用，等待有效渲染相机";
     env->PopLocalFrame(nullptr);
 }
 
 bool IsViewpointLoaded() { return g_loaded; }
 bool IsViewpointActive() { return g_active; }
 ViewpointSettings& GetViewpointSettings() { return g_settings; }
+const ViewpointStatus& GetViewpointStatus() { return g_status; }
+
+void SetViewpointCompatibilityMode(bool enabled) {
+    g_settings.compatibility_mode = enabled;
+    g_status.compatibility_mode = enabled;
+    g_status.camera_valid = false;
+    g_camera.valid = false;
+    g_status.message = enabled
+        ? "已启用 ViewPoint 兼容模式，等待渲染状态"
+        : "ViewPoint 兼容模式已关闭";
+}
 
 bool ProjectViewpointWorldPoint(const WorldPoint& point, ScreenPoint& screen) {
     return ProjectViewpointPoint(g_camera, point, screen);

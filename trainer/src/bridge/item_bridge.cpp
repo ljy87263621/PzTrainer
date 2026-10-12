@@ -706,10 +706,10 @@ void AdvanceLocalSpawnTask(JNIEnv* env) {
 
 }  // namespace
 
-bool RefreshItemCatalog() {
+bool RefreshItemCatalogInternal(bool force_refresh) {
     JNIEnv* env = GetCurrentJniEnvironment();
     if (env == nullptr || !Initialize(env)) return false;
-    if (!g_catalog.empty()) return true;
+    if (!force_refresh && !g_catalog.empty()) return true;
 
     jobject manager = env->GetStaticObjectField(
         g_bindings.script_manager, g_bindings.script_manager_instance);
@@ -727,7 +727,8 @@ bool RefreshItemCatalog() {
         env->DeleteLocalRef(items);
         return false;
     }
-    g_catalog.reserve(static_cast<std::size_t>(count));
+    std::vector<ItemCatalogEntry> refreshed_catalog;
+    refreshed_catalog.reserve(static_cast<std::size_t>(count));
     std::unordered_set<std::string> ammo_types;
     std::unordered_set<std::string> magazine_types;
     for (jint index = 0; index < count; ++index) {
@@ -845,10 +846,10 @@ bool RefreshItemCatalog() {
             ClearException(env);
         }
         env->DeleteLocalRef(item);
-        g_catalog.push_back(std::move(entry));
+        refreshed_catalog.push_back(std::move(entry));
     }
     env->DeleteLocalRef(items);
-    for (ItemCatalogEntry& entry : g_catalog) {
+    for (ItemCatalogEntry& entry : refreshed_catalog) {
         if (ammo_types.find(entry.full_type) != ammo_types.end()) {
             entry.spawn_method_mask |=
                 ItemSpawnMethodMask(ItemSpawnMethod::WeaponAmmoExtract);
@@ -858,12 +859,22 @@ bool RefreshItemCatalog() {
                 ItemSpawnMethodMask(ItemSpawnMethod::WeaponMagazineExtract);
         }
     }
-    std::sort(g_catalog.begin(), g_catalog.end(),
+    std::sort(refreshed_catalog.begin(), refreshed_catalog.end(),
               [](const ItemCatalogEntry& left, const ItemCatalogEntry& right) {
                   if (left.category != right.category) return left.category < right.category;
                   return left.display_name < right.display_name;
               });
-    return !g_catalog.empty();
+    if (refreshed_catalog.empty()) return false;
+    g_catalog = std::move(refreshed_catalog);
+    return true;
+}
+
+bool RefreshItemCatalog() {
+    return RefreshItemCatalogInternal(false);
+}
+
+bool ForceRefreshItemCatalog() {
+    return RefreshItemCatalogInternal(true);
 }
 
 void UpdateItemBridge() {

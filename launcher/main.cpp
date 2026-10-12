@@ -8,6 +8,21 @@
 
 namespace {
 
+void ConfigureDpiAwareness() {
+    using SetProcessDpiAwarenessContextFn = BOOL(WINAPI*)(
+        DPI_AWARENESS_CONTEXT);
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    const auto set_context = user32 == nullptr
+        ? nullptr
+        : reinterpret_cast<SetProcessDpiAwarenessContextFn>(
+            GetProcAddress(user32, "SetProcessDpiAwarenessContext"));
+    if (set_context != nullptr && set_context(
+            DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
+        return;
+    }
+    SetProcessDPIAware();
+}
+
 std::filesystem::path FindGameDirectory(const std::filesystem::path& launcher_directory) {
     std::error_code error;
     const std::filesystem::path working_directory = std::filesystem::current_path(error);
@@ -34,7 +49,7 @@ std::filesystem::path FindGameDirectory(const std::filesystem::path& launcher_di
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    ConfigureDpiAwareness();
 
     wchar_t executable_path[MAX_PATH]{};
     GetModuleFileNameW(nullptr, executable_path, MAX_PATH);

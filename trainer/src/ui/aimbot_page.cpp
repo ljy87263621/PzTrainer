@@ -188,6 +188,18 @@ void DrawFastAimingDelayToggle() {
     }
 }
 
+void DrawViewpointAimToggle(const char* label, bool* value) {
+    const auto& status = bridge::GetViewpointStatus();
+    const bool available = bridge::ViewpointBridgeReady(
+        bridge::GetViewpointSettings(), status);
+    if (available) {
+        components::CompactToggleRow(label, value);
+    } else {
+        components::CompactDisabledToggleRow(label, *value,
+            status.message.c_str());
+    }
+}
+
 void DrawLegitSettings(AimSettings& settings, LegitWeaponSettings* preset) {
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(6.0f, 0.0f));
     if (!ImGui::BeginTable(
@@ -204,9 +216,7 @@ void DrawLegitSettings(AimSettings& settings, LegitWeaponSettings* preset) {
     components::BeginCompactCard(
         "LegitMainCard", nullptr, ImVec2(0.0f, 0.0f));
     components::CompactToggleRow("启用辅助瞄准", &settings.legit_enabled);
-    if (bridge::IsViewpointLoaded()) {
-        components::CompactToggleRow("3D 模式（Viewpoint）", &bridge::GetViewpointSettings().legit_3d);
-    }
+    DrawViewpointAimToggle("3D 模式（Viewpoint）", &bridge::GetViewpointSettings().legit_3d);
     components::CompactToggleRow("自动辅助瞄准", &preset->automatic_aim);
     components::CompactToggleRow("瞄准僵尸", &preset->target_zombies);
     components::CompactToggleRow("瞄准 PVP 玩家", &preset->target_players);
@@ -253,9 +263,7 @@ void DrawRageSettings(AimSettings& settings, RageWeaponSettings* preset,
     components::BeginCompactCard(
         "RageMainCard", nullptr, ImVec2(0.0f, 0.0f));
     components::CompactToggleRow("启用 Rage", &settings.rage_enabled);
-    if (bridge::IsViewpointLoaded()) {
-        components::CompactToggleRow("3D 模式（Viewpoint）", &bridge::GetViewpointSettings().rage_3d);
-    }
+    DrawViewpointAimToggle("3D 模式（Viewpoint）", &bridge::GetViewpointSettings().rage_3d);
     components::CompactToggleRow("自动瞄准", &preset->automatic_aim);
     components::CompactToggleRow("瞄准僵尸", &preset->target_zombies);
     components::CompactToggleRow("瞄准 PVP 玩家", &preset->target_players);

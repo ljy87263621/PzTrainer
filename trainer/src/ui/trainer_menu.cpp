@@ -14,6 +14,7 @@
 #include "features/visual/player_visual_settings.hpp"
 #include "features/visual/animal_visual_settings.hpp"
 #include "features/visual/vehicle_visual_settings.hpp"
+#include "features/visual/viewpoint_model_chams.hpp"
 #include "bridge/lua_ui_bridge.hpp"
 #include "settings/localization.hpp"
 #include "settings/ui_preferences.hpp"
@@ -775,11 +776,47 @@ void DrawVehicleVisualControls() {
 }
 
 void DrawVisualPage() {
-    if (bridge::IsViewpointLoaded()) {
-        CompactToggleRow("3D 模式（Viewpoint）",
-            &bridge::GetViewpointSettings().esp_3d);
-        ImGui::Dummy(ImVec2(0.0f, U(5.0f)));
+    const bridge::ViewpointStatus& viewpoint_status =
+        bridge::GetViewpointStatus();
+    bridge::ViewpointSettings& viewpoint_settings =
+        bridge::GetViewpointSettings();
+    const features::visual::ViewpointModelChamsStatus& viewpoint_chams =
+        features::visual::GetViewpointModelChamsStatus();
+    BeginCompactCard("ViewpointControls", nullptr, ImVec2(0.0f, 0.0f));
+    if (viewpoint_status.ready) {
+        bool compatibility_mode = viewpoint_settings.compatibility_mode;
+        if (CompactToggleRow("ViewPoint Mod 兼容模式", &compatibility_mode)) {
+            bridge::SetViewpointCompatibilityMode(compatibility_mode);
+        }
+    } else {
+        CompactDisabledToggleRow(
+            "ViewPoint Mod 兼容模式", viewpoint_settings.compatibility_mode,
+            viewpoint_status.message.c_str());
     }
+    if (bridge::ViewpointBridgeReady(viewpoint_settings, viewpoint_status)) {
+        CompactToggleRow("ViewPoint 3D ESP", &viewpoint_settings.esp_3d);
+        if (ImGui::IsItemHovered()) {
+            RoundedTooltip("控制 3D 透视投影和模型上色。模型上色还需启用对应实体透视并选择模型效果。");
+        }
+    } else {
+        CompactDisabledToggleRow(
+            "ViewPoint 3D ESP", viewpoint_settings.esp_3d,
+            viewpoint_status.message.c_str());
+    }
+    ImGui::TextDisabled(
+        "Status: %s", settings::Translate(viewpoint_status.message.c_str()));
+    ImGui::TextDisabled(
+        "Mod: %s · Enabled: %s · Camera: %s",
+        viewpoint_status.detected ? "Detected" : "Not detected",
+        viewpoint_status.mod_enabled ? "On" : "Off",
+        viewpoint_status.camera_valid ? "Ready" : "Waiting");
+    ImGui::TextDisabled(
+        "Model Chams: %s · Draws: %d",
+        settings::Translate(viewpoint_chams.message.empty()
+            ? "等待 ViewPoint 3D 模型状态" : viewpoint_chams.message.c_str()),
+        viewpoint_chams.painted_draws);
+    EndCard();
+    ImGui::Dummy(ImVec2(0.0f, U(5.0f)));
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(6.0f, 5.0f));
     if (!ImGui::BeginTable(
             "VisualEspCards", 2,

@@ -19,6 +19,13 @@ using RtlAddFunctionTableFn = BOOLEAN(WINAPI*)(
 using RtlDeleteFunctionTableFn = BOOLEAN(WINAPI*)(PRUNTIME_FUNCTION);
 using DllEntryPointFn = BOOL(WINAPI*)(HINSTANCE, DWORD, LPVOID);
 using TlsCallbackFn = void(NTAPI*)(PVOID, DWORD, PVOID);
+using SetProcessValidCallTargetsFn = BOOL(WINAPI*)(
+    HANDLE, PVOID, SIZE_T, PCFG_CALL_TARGET_INFO);
+using GetProcessMitigationPolicyFn = BOOL(WINAPI*)(
+    HANDLE, PROCESS_MITIGATION_POLICY, PVOID, SIZE_T);
+using NtCreateThreadExFn = LONG(NTAPI*)(
+    PHANDLE, ACCESS_MASK, PVOID, HANDLE, LPTHREAD_START_ROUTINE, PVOID,
+    ULONG, SIZE_T, SIZE_T, SIZE_T, PVOID);
 
 enum class LoaderStatus : DWORD {
     Pending = 0,
@@ -230,9 +237,86 @@ bool RangeInside(std::size_t offset, std::size_t size, std::size_t limit) {
     return offset <= limit && size <= limit - offset;
 }
 
-std::wstring Win32Error(const wchar_t* operation) {
-    return std::wstring(operation) + L"，Win32 错误：" +
-        std::to_wstring(GetLastError());
+std::wstring Win32Error(const wchar_t* operation, DWORD code = GetLastError()) {
+    wchar_t message[256]{};
+    const DWORD length = FormatMessageW(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, code, 0, message, ARRAYSIZE(message), nullptr);
+    std::wstring result(operation);
+    result += L"，Win32 错误：" + std::to_wstring(code);
+    if (length != 0) {
+        DWORD end = length;
+        while (end > 0 && (message[end - 1] == L'\r' ||
+            message[end - 1] == L'\n' || message[end - 1] == L' ')) {
+            message[--end] = L'\0';
+        }
+        result += L"（";
+        result += message;
+        result += L"）";
+    }
+    return result;
+}
+
+bool RegisterCfgCallTarget(
+    HANDLE process, void* address, SIZE_T code_size, std::wstring& error) {
+    HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+    if (kernel32 == nullptr) return true;
+    const auto get_policy = reinterpret_cast<GetProcessMitigationPolicyFn>(
+        GetProcAddress(kernel32, "GetProcessMitigationPolicy"));
+    PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY policy{};
+    if (get_policy == nullptr || !get_policy(
+            process, ProcessControlFlowGuardPolicy, &policy, sizeof(policy))) {
+        return true;
+    }
+    if (!policy.EnableControlFlowGuard) return true;
+
+    const auto set_target = reinterpret_cast<SetProcessValidCallTargetsFn>(
+        GetProcAddress(kernel32, "SetProcessValidCallTargets"));
+    if (set_target == nullptr) {
+        error = L"目标进程启用了 CFG，但当前系统不支持注册远程加载器入口";
+        return false;
+    }
+    SYSTEM_INFO system_info{};
+    GetSystemInfo(&system_info);
+    const SIZE_T page_size = system_info.dwPageSize == 0
+        ? 0x1000 : system_info.dwPageSize;
+    const SIZE_T region_size = (code_size + page_size - 1) / page_size * page_size;
+    CFG_CALL_TARGET_INFO target{};
+    target.Offset = 0;
+    target.Flags = CFG_CALL_TARGET_VALID;
+    if (!set_target(process, address, region_size, &target)) {
+        error = Win32Error(L"无法将远程加载器入口注册为 CFG 有效目标");
+        return false;
+    }
+    return true;
+}
+
+HANDLE CreateRemoteLoaderThread(
+    HANDLE process, LPTHREAD_START_ROUTINE start, void* argument,
+    std::wstring& error) {
+    SetLastError(ERROR_SUCCESS);
+    HANDLE thread = CreateRemoteThread(process, nullptr, 0, start, argument, 0, nullptr);
+    if (thread != nullptr) return thread;
+    const DWORD create_error = GetLastError();
+
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    const auto nt_create_thread = ntdll == nullptr
+        ? nullptr
+        : reinterpret_cast<NtCreateThreadExFn>(
+            GetProcAddress(ntdll, "NtCreateThreadEx"));
+    if (nt_create_thread != nullptr) {
+        HANDLE fallback = nullptr;
+        const LONG status = nt_create_thread(
+            &fallback, THREAD_ALL_ACCESS, nullptr, process, start, argument,
+            0, 0, 0, 0, nullptr);
+        if (status >= 0 && fallback != nullptr) return fallback;
+        error = L"无法启动远程加载器线程，CreateRemoteThread 错误：" +
+            std::to_wstring(create_error) + L"，NtCreateThreadEx 状态：" +
+            std::to_wstring(static_cast<unsigned long>(status));
+        return nullptr;
+    }
+    error = Win32Error(L"无法启动远程加载器线程", create_error);
+    return nullptr;
 }
 
 std::uintptr_t FindRemoteModuleBase(
@@ -543,13 +627,16 @@ bool ManualMapImage(
         error = Win32Error(L"无法启用远程加载器代码");
         return false;
     }
+    if (!RegisterCfgCallTarget(
+            process.Get(), remote_loader, loader_size, error)) {
+        return false;
+    }
 
-    UniqueHandle loader_thread(CreateRemoteThread(
-        process.Get(), nullptr, 0,
+    UniqueHandle loader_thread(CreateRemoteLoaderThread(
+        process.Get(),
         reinterpret_cast<LPTHREAD_START_ROUTINE>(remote_loader),
-        remote_context, 0, nullptr));
+        remote_context, error));
     if (!loader_thread) {
-        error = Win32Error(L"无法启动远程加载器线程");
         return false;
     }
     const DWORD wait_result = WaitForSingleObject(loader_thread.Get(), 15000);

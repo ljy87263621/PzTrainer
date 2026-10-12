@@ -63,6 +63,7 @@ struct ItemSpawnBatchEntry {
 };
 
 bool RefreshItemCatalog();
+bool ForceRefreshItemCatalog();
 void UpdateItemBridge();
 ItemSessionMode GetItemSessionMode();
 const std::vector<ItemCatalogEntry>& GetItemCatalog();

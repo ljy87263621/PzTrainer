@@ -88,6 +88,37 @@ bool Contains(const D2D1_RECT_F& rectangle, float x, float y) {
            y >= rectangle.top && y <= rectangle.bottom;
 }
 
+UINT SystemDpi() {
+    using GetDpiForSystemFn = UINT(WINAPI*)();
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    const auto get_dpi = user32 == nullptr
+        ? nullptr
+        : reinterpret_cast<GetDpiForSystemFn>(
+            GetProcAddress(user32, "GetDpiForSystem"));
+    if (get_dpi != nullptr) {
+        const UINT dpi = get_dpi();
+        if (dpi != 0) return dpi;
+    }
+    HDC screen = GetDC(nullptr);
+    const int dpi = screen == nullptr ? 96 : GetDeviceCaps(screen, LOGPIXELSX);
+    if (screen != nullptr) ReleaseDC(nullptr, screen);
+    return dpi > 0 ? static_cast<UINT>(dpi) : 96;
+}
+
+UINT WindowDpi(HWND window) {
+    using GetDpiForWindowFn = UINT(WINAPI*)(HWND);
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    const auto get_dpi = user32 == nullptr
+        ? nullptr
+        : reinterpret_cast<GetDpiForWindowFn>(
+            GetProcAddress(user32, "GetDpiForWindow"));
+    if (get_dpi != nullptr) {
+        const UINT dpi = get_dpi(window);
+        if (dpi != 0) return dpi;
+    }
+    return SystemDpi();
+}
+
 class LauncherWindow {
 public:
     LauncherWindow(
@@ -127,7 +158,7 @@ public:
             return 1;
         }
 
-        const UINT dpi = GetDpiForSystem();
+        const UINT dpi = SystemDpi();
         const int width = MulDiv(static_cast<int>(std::round(kSplashWidth * kWindowScale)), dpi, 96);
         const int height = MulDiv(static_cast<int>(std::round(kSplashHeight * kWindowScale)), dpi, 96);
         const int screen_width = GetSystemMetrics(SM_CXSCREEN);
@@ -527,7 +558,7 @@ private:
             (elapsed - kStartupExpandBegin) / (kStartupMainBegin - kStartupExpandBegin));
         const float logical_width = (kSplashWidth + (kDesignWidth - kSplashWidth) * progress) * kWindowScale;
         const float logical_height = (kSplashHeight + (kDesignHeight - kSplashHeight) * progress) * kWindowScale;
-        const UINT dpi = GetDpiForWindow(hwnd_);
+        const UINT dpi = WindowDpi(hwnd_);
         int width = MulDiv(static_cast<int>(std::round(logical_width)), dpi, 96);
         int height = MulDiv(static_cast<int>(std::round(logical_height)), dpi, 96);
         width += width & 1;
@@ -596,7 +627,7 @@ private:
 
         RECT client{};
         GetClientRect(hwnd_, &client);
-        const UINT dpi = GetDpiForWindow(hwnd_);
+        const UINT dpi = WindowDpi(hwnd_);
         result = factory_->CreateHwndRenderTarget(
             D2D1::RenderTargetProperties(
                 D2D1_RENDER_TARGET_TYPE_DEFAULT,

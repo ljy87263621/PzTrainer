@@ -52,16 +52,61 @@ void TestProjection() {
     assert(!ViewpointTargetAngles(camera, {100, 205, 2}, yaw, pitch));
 }
 
+void TestViewpointSettingsDefault() {
+    ViewpointSettings settings;
+    assert(settings.compatibility_mode);
+    SetViewpointCompatibilityMode(false);
+    assert(!GetViewpointSettings().compatibility_mode);
+    assert(!GetViewpointStatus().compatibility_mode);
+    SetViewpointCompatibilityMode(true);
+    assert(GetViewpointSettings().compatibility_mode);
+    assert(GetViewpointStatus().compatibility_mode);
+}
+
+void TestViewpointAvailability() {
+    ViewpointSettings settings;
+    ViewpointStatus status;
+    settings.esp_3d = true;
+    assert(!CanUseViewpoint3D(settings, status));
+    status.detected = status.ready = status.mod_enabled = true;
+    assert(ViewpointBridgeReady(settings, status));
+    assert(!CanUseViewpoint3D(settings, status));
+    status.camera_valid = true;
+    assert(CanUseViewpoint3D(settings, status));
+    assert(UseViewpointEsp(settings, status));
+    settings.esp_3d = false;
+    assert(CanUseViewpoint3D(settings, status));
+    assert(!UseViewpointEsp(settings, status));
+    settings.esp_3d = true;
+    settings.compatibility_mode = false;
+    assert(!ViewpointBridgeReady(settings, status));
+    assert(!CanUseViewpoint3D(settings, status));
+    assert(!UseViewpointEsp(settings, status));
+    settings.compatibility_mode = true;
+    status.ready = false;
+    assert(!UseViewpointEsp(settings, status));
+    status.ready = true;
+    status.mod_enabled = false;
+    assert(!UseViewpointEsp(settings, status));
+}
+
 void CheckJni(JNIEnv* env) {
     if (env->ExceptionCheck()) env->ExceptionDescribe();
     assert(!env->ExceptionCheck());
 }
 
 void TestActualMod(JNIEnv* env) {
+    jclass view = env->FindClass("viewpoint/core/View");
+    CheckJni(env);
+    assert(view != nullptr);
+    env->SetStaticBooleanField(view, env->GetStaticFieldID(view, "enabled", "Z"), JNI_FALSE);
     RefreshViewpointCamera(env, 1920, 1080);
     CheckJni(env);
     assert(IsViewpointLoaded() && !IsViewpointActive());
-    jclass view = env->FindClass("viewpoint/core/View");
+    assert(GetViewpointStatus().detected);
+    assert(GetViewpointStatus().ready);
+    assert(GetViewpointStatus().compatibility_mode);
+    assert(!GetViewpointStatus().mod_enabled);
     jclass look = env->FindClass("viewpoint/input/Look");
     jclass renderer = env->FindClass("viewpoint/render/WorldRenderer");
     jclass context = env->FindClass("viewpoint/render/FrameContext");
@@ -83,6 +128,16 @@ void TestActualMod(JNIEnv* env) {
     RefreshViewpointCamera(env, 1920, 1080);
     CheckJni(env);
     assert(IsViewpointActive());
+    SetViewpointCompatibilityMode(false);
+    assert(GetViewpointStatus().mod_enabled);
+    assert(IsViewpointActive());
+    RefreshViewpointCamera(env, 1920, 1080);
+    assert(env->GetStaticBooleanField(view,
+        env->GetStaticFieldID(view, "enabled", "Z")) == JNI_TRUE);
+    assert(IsViewpointActive());  // Mod remains 3D; only trainer adaptation stops.
+    assert(!CanUseViewpoint3D(GetViewpointSettings(), GetViewpointStatus()));
+    SetViewpointCompatibilityMode(true);
+    RefreshViewpointCamera(env, 1920, 1080);
     ScreenPoint screen;
     assert(ProjectViewpointWorldPoint({100, 205, 2}, screen));
     assert(Near(screen.x, 960) && Near(screen.y, 540));
@@ -160,6 +215,8 @@ void TestActualMod(JNIEnv* env) {
 
 int wmain(int argc, wchar_t** argv) {
     TestProjection();
+    TestViewpointSettingsDefault();
+    TestViewpointAvailability();
     assert(argc >= 2);
     const std::filesystem::path game_root(argv[1]);
     const auto java_bin = game_root / "jre64" / "bin";
@@ -183,6 +240,8 @@ int wmain(int argc, wchar_t** argv) {
         TestActualMod(env);
     } else {
         RefreshViewpointCamera(env, 1920, 1080);
+        assert(!GetViewpointStatus().detected);
+        assert(!GetViewpointStatus().ready);
         assert(!IsViewpointLoaded() && !IsViewpointActive());
         CheckJni(env);
     }

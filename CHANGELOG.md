@@ -1,5 +1,8 @@
 # Unreleased source baseline
 
+## v1.0.0-beta.5
+
+本次更新完善了运行时 Mod 切换后的物品目录处理，新增物品列表刷新按钮，刷新成功后重建目录并清理失效选择，刷新失败时保留当前可用列表。同步完成了 Trainer 与 Launcher 的 Release 联动构建，更新多语言提示与发布校验流程。当前已验证布局回归、完整 C++ Release 构建和普通 Portable 打包；VMProtect 标记 DLL 已完成编译并经本机 VMProtect GUI 处理，保护版 Launcher 已重新嵌入并打包。
 - Added responsive item quantity controls with bounded step buttons, Ctrl fast-step support, and offline layout/interaction coverage.
 - Added light and media payload routes with Java/C++ bridge validation and inventory-only destination handling.
 - Added a local SDK check script and unified `PZ_GAME_ROOT`/`PZ_JDK_ROOT` discovery for Java and Viewpoint scripts.

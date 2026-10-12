@@ -10,6 +10,8 @@ namespace pztrainer::bridge {
 void RefreshViewpointCamera(JNIEnv* env, float viewport_width, float viewport_height);
 bool IsViewpointLoaded();
 bool IsViewpointActive();
+const ViewpointStatus& GetViewpointStatus();
+void SetViewpointCompatibilityMode(bool enabled);
 bool ProjectViewpointWorldPoint(const WorldPoint& point, ScreenPoint& screen);
 FrameSnapshot MakeViewpointFrame(const FrameSnapshot& frame);
 bool AimViewpointAt(JNIEnv* env, const WorldPoint& point, float response,

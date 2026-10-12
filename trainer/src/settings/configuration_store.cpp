@@ -39,9 +39,8 @@ namespace pztrainer::settings {
 namespace {
 
 constexpr std::array<char, 8> kMagic{'P', 'Z', 'C', 'F', 'G', '0', '1', '\0'};
-// Version 19 combines the remote Viewpoint/aiming-delay fields with the
-// local Rage modifier toggles.
-constexpr std::uint32_t kVersion = 19;
+// Version 20 persists the explicit ViewPoint compatibility-mode switch.
+constexpr std::uint32_t kVersion = 20;
 constexpr std::uint32_t kTargetPointMask = (1u << 15) - 1u;
 constexpr std::uint32_t kMaximumLuaScripts = 256;
 constexpr std::uint32_t kMaximumLuaControls = 4096;
@@ -1023,8 +1022,9 @@ bool SaveConfiguration(const std::string& name, std::string& error) {
     output.write(reinterpret_cast<const char*>(&payload), sizeof(payload));
     const bridge::ExtensionOptions extensions = bridge::GetExtensionOptions();
     const auto& viewpoint = bridge::GetViewpointSettings();
-    const std::array<std::uint8_t, 3> viewpoint_flags{
-        viewpoint.esp_3d, viewpoint.legit_3d, viewpoint.rage_3d};
+    const std::array<std::uint8_t, 4> viewpoint_flags{
+        viewpoint.esp_3d, viewpoint.legit_3d, viewpoint.rage_3d,
+        viewpoint.compatibility_mode};
     const std::uint8_t fast_aiming_delay = bridge::GetPlayerAimingDelayStatus().enabled;
     if (!output || !WriteLuaConfiguration(output, lua_configuration) ||
         !WriteValue(output, extensions.flags) || !WriteValue(output, extensions.kill_range) ||
@@ -1052,7 +1052,8 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
     ConfigurationPayload payload{};
     std::vector<bridge::LuaScriptConfiguration> lua_configuration;
     bridge::ExtensionOptions extensions;
-    std::array<std::uint8_t, 3> viewpoint_flags{};
+    std::array<std::uint8_t, 4> viewpoint_flags{};
+    std::array<std::uint8_t, 3> legacy_viewpoint_flags{};
     std::uint8_t fast_aiming_delay = 0;
     bool has_lua_configuration = false;
 
@@ -1075,6 +1076,18 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         }
         return true;
     };
+    const auto read_legacy_viewpoint_flags = [&]() {
+        if (!ReadValue(input, legacy_viewpoint_flags) ||
+            std::any_of(legacy_viewpoint_flags.begin(), legacy_viewpoint_flags.end(),
+                [](std::uint8_t flag) { return flag > 1; })) {
+            error = "Viewpoint configuration is invalid or incomplete.";
+            return false;
+        }
+        viewpoint_flags = {
+            legacy_viewpoint_flags[0], legacy_viewpoint_flags[1],
+            legacy_viewpoint_flags[2], 1};
+        return true;
+    };
     const auto read_fast_aiming_delay = [&]() {
         if (!ReadValue(input, fast_aiming_delay) || fast_aiming_delay > 1) {
             error = "Aiming delay configuration is invalid or incomplete.";
@@ -1092,6 +1105,16 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
             !read_fast_aiming_delay()) {
             return false;
         }
+    } else if (header.version == 19 &&
+               header.payload_size == sizeof(ConfigurationPayload)) {
+        // Version 19 predates the explicit compatibility-mode switch.
+        input.read(reinterpret_cast<char*>(&payload), sizeof(payload));
+        has_lua_configuration = input &&
+            ReadLuaConfiguration(input, lua_configuration, true, true);
+        if (!read_extensions() || !read_legacy_viewpoint_flags() ||
+            !read_fast_aiming_delay()) {
+            return false;
+        }
     } else if (header.version == 18 &&
                header.payload_size == sizeof(ConfigurationPayloadV16)) {
         ConfigurationPayloadV16 legacy{};
@@ -1099,7 +1122,7 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         if (input) payload = UpgradeConfiguration(legacy);
         has_lua_configuration = input &&
             ReadLuaConfiguration(input, lua_configuration, true, true);
-        if (!read_extensions() || !read_viewpoint_flags() ||
+        if (!read_extensions() || !read_legacy_viewpoint_flags() ||
             !read_fast_aiming_delay()) {
             return false;
         }
@@ -1120,7 +1143,7 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         if (input) payload = UpgradeConfiguration(legacy);
         has_lua_configuration = input &&
             ReadLuaConfiguration(input, lua_configuration, true, true);
-        if (!read_extensions() || !read_viewpoint_flags()) return false;
+        if (!read_extensions() || !read_legacy_viewpoint_flags()) return false;
     } else if ((header.version == 16 || header.version == 15) &&
                header.payload_size == sizeof(ConfigurationPayloadV16)) {
         ConfigurationPayloadV16 legacy{};
@@ -1227,7 +1250,8 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
     ApplyConfiguration(payload);
     bridge::GetExtensionOptions() = extensions;
     bridge::GetViewpointSettings() = {
-        viewpoint_flags[0] != 0, viewpoint_flags[1] != 0, viewpoint_flags[2] != 0};
+        viewpoint_flags[0] != 0, viewpoint_flags[1] != 0, viewpoint_flags[2] != 0,
+        viewpoint_flags[3] != 0};
     bridge::SetFastAimingDelayEnabled(fast_aiming_delay != 0);
     if (has_lua_configuration) {
         bridge::ApplyLuaScriptConfiguration(std::move(lua_configuration));

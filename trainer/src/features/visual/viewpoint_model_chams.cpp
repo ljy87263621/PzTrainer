@@ -98,6 +98,11 @@ void DrawViewpointModelChams(const std::array<ImVec4, 12>& markers,
     env->PopLocalFrame(nullptr);
 }
 
+void ResetViewpointModelChamsStatus(const std::string& message) {
+    g_status.painted_draws = 0;
+    g_status.message = message;
+}
+
 const ViewpointModelChamsStatus& GetViewpointModelChamsStatus() { return g_status; }
 
 }  // namespace pztrainer::features::visual
