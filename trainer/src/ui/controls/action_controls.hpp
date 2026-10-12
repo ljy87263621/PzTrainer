@@ -5,6 +5,7 @@
 namespace pztrainer::ui::controls {
 
 bool ActionButton(const char* label, bool selected = false);
+bool ActionButton(const char* label, bool selected, float width);
 bool ChoiceRow(const char* label);
 bool TextField(const char* label, char* value, std::size_t capacity,
                const char* hint = "");

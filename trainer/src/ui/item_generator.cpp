@@ -490,6 +490,8 @@ void ExecuteSelected(const std::vector<ItemCatalogEntry>& catalog, int quantity)
     g_status = result.message;
 }
 
+void DrawRefreshButton(float width = 0.0f);
+
 void DrawSpawnControls(const std::vector<ItemCatalogEntry>& catalog,
                        bool corpse_scheme, bool inventory_only_scheme) {
     const ImVec2 row_start = ImGui::GetCursorScreenPos();
@@ -556,14 +558,22 @@ void DrawSpawnControls(const std::vector<ItemCatalogEntry>& catalog,
         execute_label = cooldown_label;
     }
     const float execute_width = std::min(width, TextControlWidth(execute_label, 116.0f, 24.0f));
+    const float refresh_width = std::min(
+        width, TextControlWidth(T("刷新物品列表"), 132.0f, 24.0f));
     const float action_left = right - execute_width;
-    const ImVec2 last_minimum = ImGui::GetItemRectMin();
     const ImVec2 last_maximum = ImGui::GetItemRectMax();
-    if (last_maximum.x + U(12.0f) <= action_left) {
-        ImGui::SameLine();
-        ImGui::SetCursorScreenPos(ImVec2(action_left, last_minimum.y));
+    const float action_gap = U(8.0f);
+    const float refresh_left = action_left - action_gap - refresh_width;
+    const bool actions_fit = refresh_left >= row_start.x;
+    const float action_row_y = last_maximum.y + U(6.0f);
+    if (actions_fit) {
+        ImGui::SetCursorScreenPos(ImVec2(refresh_left, action_row_y));
+        DrawRefreshButton(refresh_width);
+        ImGui::SetCursorScreenPos(ImVec2(action_left, action_row_y));
     } else {
-        ImGui::SetCursorScreenPos(ImVec2(action_left, last_maximum.y + U(6.0f)));
+        ImGui::SetCursorScreenPos(ImVec2(row_start.x, action_row_y));
+        DrawRefreshButton(std::min(refresh_width, width));
+        ImGui::SetCursorScreenPos(ImVec2(action_left, action_row_y + U(42.0f)));
     }
     ImGui::BeginDisabled(
         (corpse_scheme ? !HasCorpsePayloadSelection() : g_selected_type.empty()) || cooldown > 0);
@@ -575,13 +585,8 @@ void DrawSpawnControls(const std::vector<ItemCatalogEntry>& catalog,
     ImGui::EndDisabled();
 }
 
-void DrawRefreshButton() {
-    const ImVec2 content_cursor = ImGui::GetCursorPos();
-    const float refresh_width = TextControlWidth(T("刷新物品列表"), 132.0f, 24.0f);
-    const float refresh_right = ImGui::GetCursorPosX() +
-        ImGui::GetContentRegionAvail().x;
-    ImGui::SameLine(refresh_right - refresh_width);
-    if (controls::ActionButton("刷新物品列表")) {
+void DrawRefreshButton(float width) {
+    if (controls::ActionButton("刷新物品列表", false, width)) {
         if (bridge::ForceRefreshItemCatalog()) {
             g_status = "物品列表已刷新";
             ClearCorpsePayloadSelection();
@@ -589,7 +594,6 @@ void DrawRefreshButton() {
             g_status = "物品列表刷新失败，已保留当前列表";
         }
     }
-    ImGui::SetCursorPos(content_cursor);
 }
 
 }  // namespace
@@ -621,7 +625,6 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     SectionLabel("物品筛选与生成");
     ImGui::Dummy(ImVec2(0.0f, U(3.0f)));
     BeginCard("ItemGeneratorControls", nullptr, ImVec2(0.0f, 0.0f));
-    DrawRefreshButton();
     const float control_width = ImGui::GetContentRegionAvail().x;
     const float control_right = ImGui::GetCursorScreenPos().x + control_width;
     const char* category_preview = ItemCategoryLabel(g_category);

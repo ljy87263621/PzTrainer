@@ -50,10 +50,14 @@ bool StepButton(const char* label, float width) {
     return clicked;
 }
 
-bool DrawAction(const char* label, bool selected, bool choice) {
+bool DrawAction(const char* label, bool selected, bool choice,
+                float fixed_width = 0.0f) {
     ImGui::PushID(label);
     const ImVec2 start = ImGui::GetCursorScreenPos();
-    const ImVec2 size(ImGui::GetContentRegionAvail().x, U(choice ? 32.0f : 36.0f));
+    const float available_width = ImGui::GetContentRegionAvail().x;
+    const float width = fixed_width > 0.0f
+        ? std::min(fixed_width, available_width) : available_width;
+    const ImVec2 size(width, U(choice ? 32.0f : 36.0f));
     const bool clicked = ImGui::InvisibleButton("action", size);
     const float hover = animation::Clamp01(animation::Spring(
         ImGui::GetID("hover"), ImGui::IsItemHovered() ? 1.0f : 0.0f, 260.0f, 24.0f));
@@ -84,6 +88,9 @@ bool DrawAction(const char* label, bool selected, bool choice) {
 }  // namespace
 
 bool ActionButton(const char* label, bool selected) { return DrawAction(label, selected, false); }
+bool ActionButton(const char* label, bool selected, float width) {
+    return DrawAction(label, selected, false, width);
+}
 bool ChoiceRow(const char* label) { return DrawAction(label, false, true); }
 
 bool TextField(const char* label, char* value, std::size_t capacity, const char* hint) {
