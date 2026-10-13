@@ -44,7 +44,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\protection;$(VmProtectIncludePath)$(MSBuildThisFileDirectory)src;$(MSBuildThisFileDirectory)third_party\imgui;$(MSBuildThisFileDirectory)third_party\minhook\include;$(MSBuildThisFileDirectory)third_party\openjdk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
