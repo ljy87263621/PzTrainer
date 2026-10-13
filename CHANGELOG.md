@@ -1,5 +1,12 @@
 # Unreleased source baseline
 
+## 2026-10-13 发布整理
+
+- Trainer 和 Launcher 的 Release 构建统一使用 `/MT` 静态运行库；最新 VMP Portable 包不再附带外置 VC++ 运行库 DLL。
+- 补齐物品刷新按钮位置、生成链路说明与 ItemESP ViewPoint 3D 投影接入的发布记录。
+- 清理 84 个旧构建目标、426 个文件，合计 580,747,638 bytes；保留最新发布包、VMP 输入与输出、构建诊断和当前 Release 产物，清理后哈希与内嵌 DLL 校验通过。
+- 远端拉取成功，无新增远端提交或合并冲突；普通推送因 GitHub 443 连接超时失败，保留本地提交，未重复重试。详见 `docs/logs/2026-10-13-build-cleanup-and-sync.md`。
+
 ## v1.0.0-beta.5
 
 本次更新完善了运行时 Mod 切换后的物品目录处理，新增物品列表刷新按钮，刷新成功后重建目录并清理失效选择，刷新失败时保留当前可用列表。同步完成了 Trainer 与 Launcher 的 Release 联动构建，更新多语言提示与发布校验流程。当前已验证布局回归、完整 C++ Release 构建和普通 Portable 打包；VMProtect 标记 DLL 已完成编译并经本机 VMProtect GUI 处理，保护版 Launcher 已重新嵌入并打包。
