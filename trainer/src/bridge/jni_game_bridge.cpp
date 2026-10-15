@@ -129,6 +129,9 @@ struct Bindings {
     jmethodID character_forward_y = nullptr;
     jmethodID line_clear = nullptr;
     jmethodID identity_hash_code = nullptr;
+    jmethodID visibility_get_square = nullptr;
+    jmethodID square_can_see = nullptr;
+    jfieldID visible_to_players = nullptr;
     jfieldID matrix_m30 = nullptr;
     jfieldID matrix_m31 = nullptr;
     jfieldID matrix_m32 = nullptr;
@@ -347,6 +350,16 @@ PZ_VMP_NOINLINE bool InitializeBindings(JNIEnv* env) {
     if (g_bindings.system != nullptr) {
         g_bindings.identity_hash_code = env->GetStaticMethodID(
             g_bindings.system, "identityHashCode", "(Ljava/lang/Object;)I");
+    }
+
+    g_bindings.visibility_get_square = env->GetMethodID(g_bindings.moving_object, "getSquare", "()Lzombie/iso/IsoGridSquare;");
+    ClearException(env);
+    g_bindings.visible_to_players = env->GetFieldID(g_bindings.iso_game_character, "isVisibleToPlayer", "[Z");
+    ClearException(env);
+    jclass visibility_square = MakeGlobalClass(env, "zombie/iso/IsoGridSquare");
+    if (visibility_square) {
+        g_bindings.square_can_see = env->GetMethodID(visibility_square, "isCanSee", "(I)Z");
+        ClearException(env); env->DeleteGlobalRef(visibility_square);
     }
 
     if (g_bindings.iso_game_character != nullptr) {
@@ -766,6 +779,21 @@ bool CollectCharacterBones(JNIEnv* env, jobject character, float world_x, float 
     return succeeded;
 }
 
+bool CollectGameVisibility(JNIEnv* env, jobject object) {
+    if (env->IsInstanceOf(object,g_bindings.iso_game_character) && g_bindings.visible_to_players) {
+        auto flags=static_cast<jbooleanArray>(env->GetObjectField(object,g_bindings.visible_to_players));
+        jboolean visible=JNI_FALSE;
+        if (flags && !ClearException(env) && env->GetArrayLength(flags)>0) env->GetBooleanArrayRegion(flags,0,1,&visible);
+        if (flags) env->DeleteLocalRef(flags);
+        return !ClearException(env) && visible==JNI_TRUE;
+    }
+    if (!g_bindings.visibility_get_square || !g_bindings.square_can_see) return false;
+    jobject square=env->CallObjectMethod(object,g_bindings.visibility_get_square);
+    if (!square || ClearException(env)) { if(square)env->DeleteLocalRef(square); return false; }
+    const bool visible=env->CallBooleanMethod(square,g_bindings.square_can_see,0)==JNI_TRUE;
+    env->DeleteLocalRef(square); return !ClearException(env) && visible;
+}
+
 template <typename Snapshot>
 void CollectCharacterVisualState(JNIEnv* env, jobject cell,
                                  float player_x, float player_y, float player_z,
@@ -894,6 +922,7 @@ void CollectPlayerObject(
     snapshot.admin = ReadJavaString(
         env, object, g_bindings.player_get_access_level) == "admin";
     snapshot.invisible = invisible;
+    snapshot.game_visible = CollectGameVisibility(env, object);
     CollectCharacterVisualState(
         env, cell, local_x, local_y, local_z,
         local_forward_x, local_forward_y, x, y, z, snapshot);
@@ -1119,6 +1148,7 @@ const FrameSnapshot& CollectFrameSnapshot(
                     snapshot.unstable_pose = unstable_pose;
                     snapshot.forward_x = forward_x;
                     snapshot.forward_y = forward_y;
+                    snapshot.game_visible = CollectGameVisibility(env, zombie);
                     CollectCharacterVisualState(
                         env, cell, player_x, player_y, player_z,
                         player_forward_x, player_forward_y, x, y, z, snapshot);
@@ -1217,6 +1247,7 @@ const FrameSnapshot& CollectFrameSnapshot(
                                     env, object, g_bindings.animal_get_full_name);
                             }
                             if (snapshot.name.empty()) snapshot.name = snapshot.animal_type;
+                            snapshot.game_visible = CollectGameVisibility(env, object);
                             CollectCharacterVisualState(
                                 env, cell, player_x, player_y, player_z,
                                 player_forward_x, player_forward_y, x, y, z, snapshot);
@@ -1332,6 +1363,8 @@ const FrameSnapshot& CollectFrameSnapshot(
             const float distance = std::sqrt(delta_x * delta_x + delta_y * delta_y);
             if (!ClearException(env) && distance <= vehicle_max_distance) {
                 VehicleSnapshot snapshot{};
+                snapshot.identity = env->CallStaticIntMethod(
+                    g_bindings.system, g_bindings.identity_hash_code, vehicle);
                 snapshot.world_x = x;
                 snapshot.world_y = y;
                 snapshot.world_z = z;
@@ -1391,6 +1424,7 @@ const FrameSnapshot& CollectFrameSnapshot(
                 snapshot.screen_top_y = env->CallStaticFloatMethodA(
                     g_bindings.iso_utils, g_bindings.y_to_screen, projection) /
                     camera_zoom;
+                snapshot.game_visible = CollectGameVisibility(env, vehicle);
                 CollectCharacterVisualState(
                     env, cell, player_x, player_y, player_z,
                     player_forward_x, player_forward_y, x, y, z, snapshot);

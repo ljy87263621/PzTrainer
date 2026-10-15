@@ -1,4 +1,9 @@
 #include "ui/model_effect_controls.hpp"
+#include <type_traits>
+#include "features/visual/native_model_chams.hpp"
+#include "features/visual/thermal_material.hpp"
+#include "features/visual/model_visual_policy.hpp"
+#include "bridge/viewpoint_bridge.hpp"
 
 #include <imgui.h>
 
@@ -28,6 +33,8 @@ constexpr ZombieModelEffect kEffects[]{
     ZombieModelEffect::Iridescent,
     ZombieModelEffect::WaterFlow,
     ZombieModelEffect::Glossy,
+    ZombieModelEffect::Thermal,
+    ZombieModelEffect::WhiteHot,
 };
 
 template <typename Settings>
@@ -121,9 +128,6 @@ void DrawModelAdvancedPopup(Settings* settings, const ImVec2& anchor,
                 ImGuiChildFlags_AutoResizeY,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         components::ToggleRow(
-            "边缘发光", &settings->model_edge_glow,
-            &settings->model_edge_glow_color, false);
-        components::ToggleRow(
             "强制显示上色模型", &settings->force_model_visibility,
             static_cast<features::visual::StateColor*>(nullptr), false);
         ImGui::EndChild();
@@ -149,6 +153,12 @@ bool DrawModelEffectDropdownImpl(Settings* settings, const char* popup_id) {
     ZombieModelEffect* effect = &settings->model_effect;
     features::visual::StateColor* colors = &settings->model_colors;
     ImGui::PushID(popup_id);
+    static ZombieModelEffect remembered=ZombieModelEffect::Shaded;
+    if(*effect!=ZombieModelEffect::Disabled)remembered=*effect;
+    bool fill_enabled=*effect!=ZombieModelEffect::Disabled;
+    bool changed=components::ToggleRow("全身上色",&fill_enabled,colors,false);
+    if(changed)features::visual::SetModelFillEnabled(*effect,remembered,fill_enabled);
+    changed=components::ToggleRow("边缘发光",&settings->model_edge_glow,&settings->model_edge_glow_color,false)||changed;
     const ImVec2 row_start = ImGui::GetCursorScreenPos();
     const float row_width = ImGui::GetContentRegionAvail().x;
     const float control_width = 142.0f;
@@ -192,25 +202,27 @@ bool DrawModelEffectDropdownImpl(Settings* settings, const char* popup_id) {
                   8.0f, 0, 1.0f);
     const ZombieModelEffect displayed = *effect;
     const ImVec2 effect_label_size = ImGui::CalcTextSize(
-        features::visual::ZombieModelEffectLabel(displayed));
+        settings::Translate(features::visual::ZombieModelEffectLabel(displayed)));
     draw->AddText(ImVec2(
                       control_min.x + 13.0f,
                       control_min.y + (34.0f - effect_label_size.y) * 0.5f),
                   ImGui::GetColorU32(components::kText),
-                  features::visual::ZombieModelEffectLabel(displayed));
+                  settings::Translate(features::visual::ZombieModelEffectLabel(displayed)));
     DrawChevron(draw, ImVec2(control_max.x - 17.0f, control_min.y + 17.0f),
                 ImGui::GetColorU32(components::kMuted), open);
 
-    bool changed = false;
+    constexpr bool character_materials = std::is_same_v<Settings, features::visual::VisualSettings> ||
+        std::is_same_v<Settings, features::visual::PlayerVisualSettings>;
+    constexpr int effect_count = static_cast<int>(std::size(kEffects)) - (character_materials ? 0 : 2);
     if (BeginAnimatedDropdownPopup(
             dropdown_id, control_min, control_max,
-            ImVec2(control_width, 292.0f), hovered)) {
+            ImVec2(control_width, 20.0f + effect_count * 34.0f), hovered)) {
         const ImVec2 popup_minimum = ImGui::GetWindowPos();
         const ImVec2 popup_size = ImGui::GetWindowSize();
         const ImVec2 popup_maximum(
             popup_minimum.x + popup_size.x, popup_minimum.y + popup_size.y);
         DrawGlassPanel(ImGui::GetWindowDrawList(), popup_minimum, popup_maximum, 12.0f);
-        for (int index = 0; index < static_cast<int>(std::size(kEffects)); ++index) {
+        for (int index = 0; index < effect_count; ++index) {
             ImGui::PushID(index);
             const ZombieModelEffect option = kEffects[index];
             const bool selected = option == displayed;
@@ -234,7 +246,7 @@ bool DrawModelEffectDropdownImpl(Settings* settings, const char* popup_id) {
             ImGui::GetWindowDrawList()->AddText(
                 ImVec2(item_start.x + 22.0f, item_start.y + 8.0f),
                 ImGui::GetColorU32(selected ? components::kText : components::kMuted),
-                features::visual::ZombieModelEffectLabel(option));
+                settings::Translate(features::visual::ZombieModelEffectLabel(option)));
             if (ImGui::IsItemClicked()) {
                 *effect = option;
                 changed = true;
@@ -248,6 +260,12 @@ bool DrawModelEffectDropdownImpl(Settings* settings, const char* popup_id) {
         settings, ImVec2(control_max.x, row_start.y + 47.0f), popup_id);
     ImGui::SetCursorScreenPos(ImVec2(row_start.x, row_start.y + 48.0f));
     ImGui::Dummy(ImVec2(row_width, 1.0f));
+    if (features::visual::ModelVisualsEnabled(displayed,settings->model_edge_glow) && !bridge::IsViewpointActive()) {
+        const std::string error = features::visual::NativeModelChams::Diagnostics().material_error;
+        if (!error.empty()) {
+            ImGui::TextWrapped("%s", error.c_str());
+        }
+    }
     ImGui::PopID();
     return changed;
 }

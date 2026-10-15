@@ -18,16 +18,16 @@ This repository is organized as one build unit:
 From the repository root, run:
 
 ```powershell
-.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.2'
+.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.6'
 ```
 
 The script builds the trainer first, builds the launcher with that DLL embedded as a resource, writes SHA-256 sums, and produces a portable ZIP under `artifacts\`.
 
-The script is the default marker-disabled developer build. The published beta.2 package was produced from a VMProtect-processed trainer DLL and then rebuilt through PzLauncher; the protected-release handoff is documented in [docs/RELEASE.md](docs/RELEASE.md). End users of the published package do not need the VMProtect SDK.
+The beta.6 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
 
 The trainer includes optional Viewpoint 3D compatibility. When a compatible Viewpoint mod is installed in the target Project Zomboid build, the visual page exposes 3D ESP for zombies, players, animals, and vehicles, and the aim pages expose separate 3D Legit/Rage switches. The portable package embeds the bridge and Java helper but does not redistribute the third-party Viewpoint mod.
 
-The current source baseline also contains responsive item quantity controls and the light/media payload routes. These changes are in the source tree and validation builds; they are separate from the already published beta.2 artifact until a new release is cut.
+Beta.6 adds playable named VHS/CD generation, silent-only Rage target collection, furniture catalog entries, model fill and rim controls, per-feature game visibility filters, and default configuration loading. See [media and silent aim](docs/RECORDED_MEDIA_SILENT_AIM.md), [visibility and default configs](docs/VISIBILITY_DEFAULT_CONFIG.md), and [model effects](docs/MODEL_COLOUR_FIXES.md) for behavior and validation limits.
 
 ## Local SDK
 

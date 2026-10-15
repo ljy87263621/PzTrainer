@@ -1,3 +1,4 @@
+#include "features/visual/visibility_options.hpp"
 #include "features/visual/player_esp.hpp"
 #include "features/visual/direction_indicator.hpp"
 
@@ -64,30 +65,33 @@ void DrawHealthBar(ImDrawList* draw, const ImVec2& top_left,
 }  // namespace
 
 void DrawPlayerEsp(const bridge::FrameSnapshot& frame,
-                   const PlayerVisualSettings& settings) {
-    if (!settings.player_esp ||
+                   const PlayerVisualSettings& input_settings) {
+    if (!input_settings.player_esp ||
         frame.gate_status != bridge::GateStatus::SinglePlayerAllowed) {
         return;
     }
 
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
-    if (settings.ray_esp && frame.has_local_screen_position) {
+    if (input_settings.ray_esp && frame.has_local_screen_position) {
         const ImVec2 source(frame.local_screen_x, frame.local_screen_y);
         for (const bridge::PlayerSnapshot& player : frame.players) {
+            const auto settings=FilterVisibility(input_settings,GetVisibilityOptions(),VisualCategory::Players,player.game_visible);
+            if (!settings.ray_esp) continue;
             const ImVec2 target(player.screen_x, player.screen_y);
             const bool highlighted_admin =
                 settings.show_admin_marker && player.admin;
             const ImVec4& arrow_color = highlighted_admin
                 ? AdminColor() : settings.ray_color;
-            const std::string name = DisplayName(
-                player, settings.show_admin_marker);
+            const std::string name = settings.show_name ? DisplayName(
+                player, settings.show_admin_marker) : "";
             DrawNearbyDirectionIndicator(draw, source, target, arrow_color,
                                          name.c_str());
         }
     }
 
     for (const bridge::PlayerSnapshot& player : frame.players) {
+        const auto settings=FilterVisibility(input_settings,GetVisibilityOptions(),VisualCategory::Players,player.game_visible);
         if (player.screen_x < -80.0f || player.screen_y < -120.0f ||
             player.screen_x > display.x + 80.0f || player.screen_y > display.y + 80.0f) {
             continue;

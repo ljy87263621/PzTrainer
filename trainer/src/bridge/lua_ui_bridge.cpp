@@ -36,6 +36,7 @@ constexpr std::int64_t kCheatListFunction = 6;
 constexpr std::int64_t kCheatGetFunction = 7;
 constexpr std::int64_t kCheatSetFunction = 8;
 constexpr std::int64_t kWorldToScreenFunction = 9;
+constexpr std::int64_t kViewpointStatusFunction = 10;
 constexpr std::int64_t kCategoryToggle = 0x100;
 constexpr std::int64_t kCategorySlider = 0x101;
 constexpr std::int64_t kCategoryAimMode = 0x102;
@@ -447,6 +448,7 @@ bool InstallNamespace(JNIEnv* env) {
         !InstallFunction(env, cheat, "get", kCheatGetFunction) ||
         !InstallFunction(env, cheat, "set", kCheatSetFunction) ||
         !InstallFunction(env, world, "to_screen", kWorldToScreenFunction) ||
+        !InstallFunction(env, world, "viewpoint_status", kViewpointStatusFunction) ||
         !TableSet(env, g_bindings.environment, "PZSA", pzsa)) {
         env->DeleteLocalRef(cheat);
         env->DeleteLocalRef(world);
@@ -469,7 +471,7 @@ jint JNICALL Dispatch(JNIEnv* env, jclass, jlong function_id,
                       jobject frame, jint argument_count) {
     if (frame == nullptr) return 0;
     if (function_id == kVersionFunction) {
-        jstring version = env->NewStringUTF("PZSA Lua API 3");
+        jstring version = env->NewStringUTF("PZSA Lua API 4");
         if (version == nullptr) return 0;
         const jmethodID push = env->GetMethodID(
             env->GetObjectClass(frame), "push", "(Ljava/lang/Object;)I");
@@ -477,7 +479,7 @@ jint JNICALL Dispatch(JNIEnv* env, jclass, jlong function_id,
         env->DeleteLocalRef(version);
         return ClearException(env) ? 0 : result;
     }
-    if (function_id == kWorldToScreenFunction) {
+    if (function_id == kWorldToScreenFunction || function_id == kViewpointStatusFunction) {
         jclass frame_class = env->GetObjectClass(frame);
         const jmethodID get = env->GetMethodID(
             frame_class, "get", "(I)Ljava/lang/Object;");
@@ -493,20 +495,28 @@ jint JNICALL Dispatch(JNIEnv* env, jclass, jlong function_id,
         jobject result = env->CallObjectMethod(
             g_bindings.platform_instance, g_bindings.new_table);
         if (result == nullptr || get == nullptr || push == nullptr ||
-            argument_count < 3 || ClearException(env)) {
+            argument_count < (function_id == kWorldToScreenFunction ? 3 : 2) || ClearException(env)) {
             if (result != nullptr) env->DeleteLocalRef(result);
             if (frame_class != nullptr) env->DeleteLocalRef(frame_class);
             return 0;
+        }
+        if (function_id == kViewpointStatusFunction) {
+            // Lua UI drawing happens before SwapBuffers. Read the mod's current
+            // render matrix here instead of using the preceding overlay frame.
+            RefreshViewpointCamera(env, number_argument(0), number_argument(1));
         }
         const ViewpointStatus& status = GetViewpointStatus();
         const bool active = IsViewpointActive() && status.detected &&
             status.ready && status.mod_enabled;
         ScreenPoint screen{};
-        const bool visible = active && status.camera_valid &&
+        const bool visible = function_id == kWorldToScreenFunction && active && status.camera_valid &&
             ProjectViewpointWorldPoint(
                 {number_argument(0), number_argument(1), number_argument(2)},
                 screen);
         TableSetBoolean(env, result, "active", active);
+        TableSetBoolean(env, result, "detected", status.detected);
+        TableSetBoolean(env, result, "mod_enabled", status.mod_enabled);
+        TableSetBoolean(env, result, "compatibility_mode", status.compatibility_mode);
         TableSetBoolean(env, result, "ready", active && status.camera_valid);
         TableSetBoolean(env, result, "visible", visible);
         TableSetNumber(env, result, "x", screen.x);

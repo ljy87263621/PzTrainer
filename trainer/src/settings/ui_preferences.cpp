@@ -17,6 +17,7 @@ std::filesystem::path g_lua_directory;
 std::filesystem::path g_preferences_path;
 std::uint64_t g_revision = 1;
 bool g_initialized = false;
+std::string g_default_configuration;
 bool g_safe_mode_enabled = true;
 std::atomic_int g_menu_hotkey{VK_INSERT};
 
@@ -77,9 +78,14 @@ void EnsureDefaults() {
 
 }  // namespace
 
-void InitializeUiPreferences() {
+void InitializeUiPreferences(const std::filesystem::path& root) {
     if (g_initialized) return;
     g_initialized = true;
+    if (!root.empty()) {
+        g_preferences_path = root / L"preferences.ini";
+        g_configuration_directory = root / L"configs";
+        g_lua_directory = root / L"lua";
+    }
     EnsureDefaults();
 
     std::ifstream input(g_preferences_path);
@@ -103,6 +109,8 @@ void InitializeUiPreferences() {
                 g_configuration_directory = std::filesystem::u8path(value);
             } else if (key == "lua_directory" && !value.empty()) {
                 g_lua_directory = std::filesystem::u8path(value);
+            } else if (key == "default_configuration") {
+                g_default_configuration = value;
             } else if (key == "safe_mode") {
                 g_safe_mode_enabled = std::stoi(value) != 0;
             } else if (key == "menu_hotkey") {
@@ -188,9 +196,15 @@ bool SetConfigurationDirectory(const std::filesystem::path& directory,
         error = filesystem_error.message();
         return false;
     }
+    const auto previous_directory=g_configuration_directory;
+    const auto previous_default=g_default_configuration;
     g_configuration_directory = absolute;
+    g_default_configuration.clear();
+    if(!SaveUiPreferences(error)) {
+        g_configuration_directory=previous_directory;g_default_configuration=previous_default;return false;
+    }
     ++g_revision;
-    return SaveUiPreferences(error);
+    return true;
 }
 
 bool SetLuaDirectory(const std::filesystem::path& directory,
@@ -225,7 +239,8 @@ bool SaveUiPreferences(std::string& error) {
         error = filesystem_error.message();
         return false;
     }
-    std::ofstream output(g_preferences_path, std::ios::trunc);
+    const auto temporary=std::filesystem::path(g_preferences_path.wstring()+L".tmp."+std::to_wstring(GetCurrentProcessId()));
+    std::ofstream output(temporary, std::ios::trunc);
     if (!output) {
         error = "Unable to open preferences file.";
         return false;
@@ -237,15 +252,40 @@ bool SaveUiPreferences(std::string& error) {
     output << "lua_directory=" << g_lua_directory.u8string() << '\n';
     output << "safe_mode=" << (g_safe_mode_enabled ? 1 : 0) << '\n';
     output << "menu_hotkey=" << g_menu_hotkey.load() << '\n';
+    output << "default_configuration=" << g_default_configuration << '\n';
     if (!output) {
+        output.close();std::filesystem::remove(temporary,filesystem_error);
         error = "Unable to write preferences file.";
         return false;
+    }
+    output.flush();const bool flushed=static_cast<bool>(output);output.close();
+    if(!flushed || output.fail() || !MoveFileExW(temporary.c_str(),g_preferences_path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) {
+        std::filesystem::remove(temporary,filesystem_error);error="Unable to atomically replace preferences file.";return false;
     }
     return true;
 }
 
 std::uint64_t UiPreferencesRevision() {
     return g_revision;
+}
+
+const std::string& DefaultConfigurationName() { return g_default_configuration; }
+
+bool SetDefaultConfiguration(const std::string& name, std::string& error) {
+    if (!name.empty()) {
+        if (name.size()>64 || name=="." || name==".." || name.back()=='.' || name.back()==' ' ||
+            name.front()==' ' || std::any_of(name.begin(),name.end(),[](unsigned char c) {
+                return c<32 || c==127 || std::string("\\/:*?\"<>|=").find(c)!=std::string::npos;
+            })) { error="Invalid default configuration name."; return false; }
+        std::error_code ec;
+        if (!std::filesystem::is_regular_file(ConfigurationDirectory()/std::filesystem::u8path(name+".pzcfg"),ec)) {
+            error="Default configuration file was not found."; return false;
+        }
+    }
+    const auto previous=g_default_configuration;
+    g_default_configuration=name;
+    if (!SaveUiPreferences(error)) { g_default_configuration=previous; return false; }
+    ++g_revision; return true;
 }
 
 }  // namespace pztrainer::settings

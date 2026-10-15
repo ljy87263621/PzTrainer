@@ -13,7 +13,7 @@ struct CategoryLabel {
     const char* chinese;
 };
 
-constexpr std::array<CategoryLabel, 18> kChineseCategories{{
+constexpr std::array<CategoryLabel, 19> kChineseCategories{{
     {"Weapon", "武器"},
     {"Food", "食物"},
     {"Clothing", "服装"},
@@ -24,6 +24,7 @@ constexpr std::array<CategoryLabel, 18> kChineseCategories{{
     {"AlarmClock", "闹钟"},
     {"Normal", "普通"},
     {"Moveable", "可移动物"},
+    {"Furniture", "家具"},
     {"WeaponPart", "武器配件"},
     {"Map", "地图"},
     {"Medical", "医疗"},

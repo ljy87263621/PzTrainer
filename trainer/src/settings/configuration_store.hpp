@@ -13,5 +13,7 @@ std::vector<ConfigurationInfo> ListConfigurations();
 bool SaveConfiguration(const std::string& name, std::string& error);
 bool LoadConfiguration(const std::string& name, std::string& error);
 bool DeleteConfiguration(const std::string& name, std::string& error);
+void LoadDefaultConfigurationOnce();
+const std::string& DefaultConfigurationLoadMessage();
 
 }  // namespace pztrainer::settings

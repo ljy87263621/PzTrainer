@@ -1,3 +1,4 @@
+#include "features/visual/visibility_options.hpp"
 #include "features/visual/vehicle_esp.hpp"
 #include "features/visual/direction_indicator.hpp"
 
@@ -34,19 +35,22 @@ const char* StartStatus(const bridge::VehicleSnapshot& vehicle) {
 }  // namespace
 
 void DrawVehicleEsp(const bridge::FrameSnapshot& frame,
-                    const VehicleVisualSettings& settings) {
-    if (!settings.vehicle_esp ||
+                    const VehicleVisualSettings& input_settings) {
+    if (!input_settings.vehicle_esp ||
         frame.gate_status != bridge::GateStatus::SinglePlayerAllowed) return;
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
-    if (settings.ray_esp && frame.has_local_screen_position) {
+    if (input_settings.ray_esp && frame.has_local_screen_position) {
         const ImVec2 source(frame.local_screen_x, frame.local_screen_y);
         for (const bridge::VehicleSnapshot& vehicle : frame.vehicles) {
+            const auto settings=FilterVisibility(input_settings,GetVisibilityOptions(),VisualCategory::Vehicles,vehicle.game_visible);
+            if (!settings.ray_esp) continue;
             DrawDirectionIndicator(draw, source,
                 ImVec2(vehicle.screen_x, vehicle.screen_y), settings.ray_color);
         }
     }
     for (const bridge::VehicleSnapshot& vehicle : frame.vehicles) {
+        const auto settings=FilterVisibility(input_settings,GetVisibilityOptions(),VisualCategory::Vehicles,vehicle.game_visible);
         if (vehicle.screen_x < -160.0f || vehicle.screen_y < -160.0f ||
             vehicle.screen_x > display.x + 160.0f ||
             vehicle.screen_y > display.y + 160.0f) continue;

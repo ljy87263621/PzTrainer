@@ -1,4 +1,5 @@
 #include "features/aim/rage_aim.hpp"
+#include "features/aim/rage_targeting_policy.hpp"
 
 #include <jni.h>
 
@@ -1186,7 +1187,7 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         } else if (!preset->automatic_aim) {
             ReleaseForcedAim(env, player);
         }
-        if (aiming && (preset->automatic_aim || preset->magic_bullet)) {
+        if (ShouldAdjustRageAim(*preset, aiming)) {
             const bool adjusted = AimAtTarget(
                 env, player, target.point, target.game_id,
                 target.body_part, target.is_player, preset->silent_aim,
@@ -1273,9 +1274,10 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
         g_double_tap_target = Candidate{};
         g_status.message = "范围内没有符合条件的目标";
     } else if (!aiming) {
+        ClearRageBallisticsOverride();
         g_status.message = preset->automatic_aim
             ? "正在进入原版强制瞄准状态"
-            : "按住原版瞄准键以启用魔法子弹";
+            : "按住原版瞄准键以启用目标辅助";
     } else if (!spread_ready) {
         g_status.message = "弹道无扩散接口尚未就绪，暂停自动开火";
     } else if (g_status.waiting_for_aim) {
@@ -1287,6 +1289,7 @@ void UpdateRageAim(const bridge::FrameSnapshot& frame, bool menu_visible,
     } else if (!preset->automatic_fire) {
         g_status.message = preset->magic_bullet
             ? "魔法子弹已锁定，等待手动开枪"
+            : preset->silent_aim ? "静默自瞄已锁定，等待手动开枪"
             : "已对准目标，自动开枪已关闭";
     } else if (g_attack_call.queue_item != nullptr) {
         g_status.message = g_double_tap_pending ? "等待原版状态允许第二枪" :
@@ -1344,8 +1347,7 @@ bool RageAimNeedsZombieData() {
     if (!settings.rage_enabled) return false;
     for (const RageWeaponSettings& preset : settings.rage_presets) {
         if (preset.enabled && preset.target_zombies &&
-            (preset.automatic_aim || preset.automatic_fire ||
-             preset.magic_bullet) &&
+            HasRageTargetingMode(preset) &&
             preset.target_points != 0) {
             return true;
         }
@@ -1358,8 +1360,7 @@ bool RageAimNeedsPlayerData() {
     if (!settings.rage_enabled) return false;
     for (const RageWeaponSettings& preset : settings.rage_presets) {
         if (preset.enabled && preset.target_players &&
-            (preset.automatic_aim || preset.automatic_fire ||
-             preset.magic_bullet) &&
+            HasRageTargetingMode(preset) &&
             preset.target_points != 0) {
             return true;
         }
@@ -1371,8 +1372,7 @@ float RageAimCollectionRange() {
     const AimSettings& settings = GetAimSettings();
     float maximum = 0.0f;
     for (const RageWeaponSettings& preset : settings.rage_presets) {
-        if (preset.enabled && (preset.automatic_aim || preset.automatic_fire ||
-                               preset.magic_bullet) &&
+        if (preset.enabled && HasRageTargetingMode(preset) &&
             preset.target_points != 0) {
             maximum = std::max(maximum, preset.range);
         }

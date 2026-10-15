@@ -83,6 +83,8 @@
     <ClCompile Include="src\bridge\lua_ui_bridge.cpp" />
     <ClCompile Include="src\bridge\maintenance_training_bridge.cpp" />
       <ClCompile Include="src\bridge\item_bridge.cpp" />
+    <ClCompile Include="src\bridge\moveable_item_catalog.cpp" />
+    <ClCompile Include="src\bridge\recorded_media_catalog.cpp" />
     <ClCompile Include="src\bridge\item_spawn_limiter.cpp" />
     <ClCompile Include="src\bridge\ammo_item_bridge.cpp" />
     <ClCompile Include="src\bridge\magazine_item_bridge.cpp" />
@@ -199,6 +201,8 @@
     <ClInclude Include="src\bridge\lua_ui_bridge.hpp" />
     <ClInclude Include="src\bridge\maintenance_training_bridge.hpp" />
       <ClInclude Include="src\bridge\item_bridge.hpp" />
+    <ClInclude Include="src\bridge\moveable_item_catalog.hpp" />
+    <ClInclude Include="src\bridge\item_catalog_search.hpp" />
     <ClInclude Include="src\bridge\item_spawn_limiter.hpp" />
     <ClInclude Include="src\bridge\ammo_item_bridge.hpp" />
     <ClInclude Include="src\bridge\magazine_item_bridge.hpp" />
@@ -236,6 +240,11 @@
     <ClInclude Include="src\features\aim\rage_ballistics_hook.hpp" />
     <ClInclude Include="src\features\aim\rage_aim.hpp" />
     <ClInclude Include="src\features\visual\native_model_chams.hpp" />
+    <ClInclude Include="src\features\visual\native_model_material.hpp" />
+    <ClInclude Include="src\features\visual\thermal_material.hpp" />
+    <ClInclude Include="src\features\visual\model_visual_policy.hpp" />
+    <ClInclude Include="src\features\visual\model_composite_shader.hpp" />
+    <ClInclude Include="src\features\visual\native_model_outline.hpp" />
     <ClInclude Include="src\features\visual\viewpoint_model_chams.hpp" />
     <ClInclude Include="src\features\visual\animal_esp.hpp" />
     <ClInclude Include="src\features\visual\animal_visual_settings.hpp" />

@@ -1,4 +1,5 @@
 #include "ui/game_zombie_mesh.hpp"
+#include "features/visual/thermal_material.hpp"
 
 #include <Windows.h>
 #include <gl/GL.h>
@@ -41,7 +42,7 @@ struct QuatKey { float time = 0.0f; Quaternion value; };
 struct BoneTrack { std::vector<VecKey> scale; std::vector<QuatKey> rotation; std::vector<VecKey> translation; };
 struct AnimationClip { std::unordered_map<std::string, BoneTrack> tracks; float duration = 4800.0f; float ticks_per_second = 4800.0f; };
 struct Bone { std::string name; int parent = -1; Matrix bind_local{}; Matrix offset{}; };
-struct ProjectedVertex { ImVec2 position; ImVec2 uv; float depth = 0.0f; };
+struct ProjectedVertex { ImVec2 position; ImVec2 uv; float depth = 0.0f; Vec3 material_position{}; };
 struct ProjectedTriangle { std::array<ProjectedVertex, 3> vertices; float depth = 0.0f; float light = 1.0f; };
 
 ImVec4 MultiplyLight(const ImVec4& color, float light) {
@@ -550,8 +551,9 @@ bool GameZombieMesh::Draw(ImDrawList* draw, const ImVec2& center, float scale, f
     bounds_max = ImVec2(-FLT_MAX, -FLT_MAX);
     for (std::size_t index = 0; index < impl_->vertices.size(); ++index) {
         const Vertex& vertex = impl_->vertices[index];
-        const ProjectedVertex projected = Project(
+        ProjectedVertex projected = Project(
             impl_->cached_vertices[index], center, scale, yaw, ImVec2(vertex.u, vertex.v));
+        projected.material_position = vertex.position;
         bounds_min.x = std::min(bounds_min.x, projected.position.x);
         bounds_min.y = std::min(bounds_min.y, projected.position.y);
         bounds_max.x = std::max(bounds_max.x, projected.position.x);
@@ -589,13 +591,6 @@ bool GameZombieMesh::Draw(ImDrawList* draw, const ImVec2& center, float scale, f
         inner.w *= 0.42f;
         DrawSolidPass(draw, projected_triangles, inner, mesh_center, 1.045f);
     }
-    if (effect == ZombieModelEffect::Glow || effect == ZombieModelEffect::GlowOutline) {
-        ImVec4 outer = style.color;
-        outer.w *= 0.10f;
-        DrawSolidPass(draw, projected_triangles, outer, mesh_center, 1.12f);
-        outer.w = style.color.w * 0.22f;
-        DrawSolidPass(draw, projected_triangles, outer, mesh_center, 1.055f);
-    }
 
     const bool draw_textured =
         (effect == ZombieModelEffect::Disabled && style.draw_base_if_disabled) ||
@@ -603,7 +598,18 @@ bool GameZombieMesh::Draw(ImDrawList* draw, const ImVec2& center, float scale, f
         effect == ZombieModelEffect::WaterFlow || effect == ZombieModelEffect::Glossy;
     const bool draw_solid = effect == ZombieModelEffect::Solid ||
         effect == ZombieModelEffect::Glow || effect == ZombieModelEffect::Iridescent;
-    if (draw_textured) {
+    if (features::visual::IsThermalMaterial(effect)) {
+        for (const ProjectedTriangle& triangle : projected_triangles) {
+            draw->PrimReserve(3, 3);
+            for (const ProjectedVertex& vertex : triangle.vertices) {
+                const Vec3& p = vertex.material_position;
+                const ImVec4 heat = features::visual::ThermalPalette(
+                    features::visual::ThermalSignal(p.x,p.y,p.z),
+                    effect == ZombieModelEffect::WhiteHot, style.color.w);
+                draw->PrimVtx(vertex.position, ImGui::GetFontTexUvWhitePixel(), ImGui::GetColorU32(heat));
+            }
+        }
+    } else if (draw_textured) {
         draw->PushTexture(ImTextureRef(static_cast<ImTextureID>(impl_->texture)));
         for (const ProjectedTriangle& triangle : projected_triangles) {
             ImVec4 color{};

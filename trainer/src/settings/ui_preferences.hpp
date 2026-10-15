@@ -8,7 +8,9 @@
 
 namespace pztrainer::settings {
 
-void InitializeUiPreferences();
+void InitializeUiPreferences(const std::filesystem::path& root = {});
+const std::string& DefaultConfigurationName();
+bool SetDefaultConfiguration(const std::string& name, std::string& error);
 float UiScalePercent();
 float UiScale();
 void SetUiScalePercent(float percent);

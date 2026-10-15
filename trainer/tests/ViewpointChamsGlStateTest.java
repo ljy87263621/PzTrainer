@@ -17,6 +17,7 @@ public class ViewpointChamsGlStateTest {
         GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 4);
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3);
+        GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_COMPAT_PROFILE);
         long window = GLFW.glfwCreateWindow(64, 64, "Viewpoint chams test", 0, 0);
         check(window != 0, "Hidden OpenGL context creation failed");
         try {
@@ -34,6 +35,9 @@ public class ViewpointChamsGlStateTest {
             GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ZERO, GL11.GL_ONE);
             GL20.glBlendEquationSeparate(GL14.GL_FUNC_SUBTRACT, GL14.GL_FUNC_REVERSE_SUBTRACT);
             GL14.glBlendColor(0.1f, 0.2f, 0.3f, 0.4f);
+            int drawFbo=GL30.glGenFramebuffers(),readFbo=GL30.glGenFramebuffers();
+            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,drawFbo); GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,readFbo);
+            GL11.glClearColor(0.2f,0.3f,0.4f,0.5f); GL11.glColorMask(true,false,true,false);
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + 64);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
             GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, textureBuffer);
@@ -41,6 +45,7 @@ public class ViewpointChamsGlStateTest {
             Class<?> stateType = Class.forName("pztrainer.player.visual.ViewpointModelChams$GlState");
             var constructor = stateType.getDeclaredConstructor(); constructor.setAccessible(true);
             Object state = constructor.newInstance();
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER,0); GL11.glClearColor(0,0,0,0); GL11.glColorMask(false,true,false,true);
             GL30.glBindVertexArray(0); GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
             GL15.glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, 0);
             GL11.glViewport(0, 0, 64, 64);
@@ -51,6 +56,12 @@ public class ViewpointChamsGlStateTest {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0); GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, 0);
             GL33.glBindSampler(64, 0); GL13.glActiveTexture(GL13.GL_TEXTURE0);
             var restore = stateType.getDeclaredMethod("restore"); restore.setAccessible(true); restore.invoke(state);
+            check(GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)==drawFbo && GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)==readFbo,
+                "Private material targets leaked framebuffer bindings");
+            float[] clearColour=new float[4]; GL11.glGetFloatv(GL11.GL_COLOR_CLEAR_VALUE,clearColour);
+            check(Math.abs(clearColour[3]-0.5f)<0.001f,"Private material target clear colour not restored");
+            var mask=org.lwjgl.BufferUtils.createByteBuffer(4); GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK,mask);
+            check(mask.get(0)!=0 && mask.get(1)==0 && mask.get(2)!=0 && mask.get(3)==0,"Material colour-write mask not restored");
             check(GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING) == vao, "VAO not restored");
             check(GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING) == buffer, "Vertex buffer not restored");
             check(GL11.glGetInteger(GL40.GL_DRAW_INDIRECT_BUFFER_BINDING) == buffer, "Indirect draw buffer not restored");
@@ -68,6 +79,7 @@ public class ViewpointChamsGlStateTest {
             check(Math.abs(colour[3] - 0.4f) < 0.001f, "Model opacity not restored");
             check(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error during state preservation");
             System.out.println("Hidden OpenGL context: model textures, samplers, indirect buffer, viewport, depth, culling and UI state restoration passed.");
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER,0); GL11.glColorMask(true,true,true,true);
             ViewpointChamsRenderTest.run();
         } finally { GLFW.glfwDestroyWindow(window); GLFW.glfwTerminate(); }
     }

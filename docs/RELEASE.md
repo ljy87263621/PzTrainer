@@ -2,6 +2,14 @@
 
 Current Release x64 builds use the static MSVC runtime (`/MT`) in both Trainer and Launcher. They do not need separate `msvcp140.dll` or `vcruntime140*.dll` files. Rebuilding Trainer changes the protection input: process the newly built marker-enabled DLL in VMProtect again before embedding it in a protected Launcher. A marker-enabled DLL that has not been processed still imports `VMProtectSDK64.dll` and must not be distributed as a protected release.
 
+## v1.0.0-beta.6
+
+Ordinary marker-disabled x64 Portable prerelease, using static CRT in both executables. The launcher embeds the newly built trainer DLL, including the updated recorded-media Java helper; no external developer runtime is required. The package includes Lua examples, feature notes and SHA256SUMS. Project Zomboid itself and the optional ViewPoint mod are not redistributed.
+
+The trainer is built first; rebuild the launcher with `/p:BuildProjectReferences=false` to retain that exact trainer image. Verify the embedded RCDATA DLL and helper JAR match the source build, and inspect PE imports for absent VC runtime / VMProtect SDK dependencies before packaging.
+
+Engine/JVM, native ballistics, GPU and configuration regressions are documented in the feature notes. Actual in-game playback and the reported aim scenario remain unverified, so this version is published as a prerelease.
+
 ## v1.0.0-beta.2
 
 This release is a Windows x64 portable package containing `pztrainer_launcher.exe`. The trainer DLL is embedded in the launcher and is built from the same source revision. It includes the merged Viewpoint 3D compatibility path for ESP, model Chams, and optional 3D Legit/Rage aiming.

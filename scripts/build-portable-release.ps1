@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')]
-    [string]$Version = '1.0.0-beta.2',
+    [string]$Version = '1.0.0-beta.6',
     [ValidateSet('Release')]
     [string]$Configuration = 'Release',
     [ValidateSet('x64')]
@@ -44,20 +44,31 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Trainer build failed with exit code $LASTEXITCODE" }
     if (-not (Test-Path $trainerDll)) { throw "Trainer build completed without $trainerDll" }
 
-    & $msbuild $launcherProject /t:Rebuild /m @properties
+    & $msbuild $launcherProject /t:Rebuild /m /p:BuildProjectReferences=false @properties
     if ($LASTEXITCODE -ne 0) { throw "Launcher build failed with exit code $LASTEXITCODE" }
     if (-not (Test-Path $launcherExe)) { throw "Launcher build completed without $launcherExe" }
 
     $artifactRoot = Join-Path $repoRoot "artifacts\pztrainer-v$Version-windows-x64-portable"
-    if (Test-Path $artifactRoot) { Remove-Item $artifactRoot -Recurse -Force }
+    $resolvedArtifacts = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts')) + [IO.Path]::DirectorySeparatorChar
+    $resolvedTarget = [IO.Path]::GetFullPath($artifactRoot)
+    if (-not $resolvedTarget.StartsWith($resolvedArtifacts, [StringComparison]::OrdinalIgnoreCase)) { throw 'Artifact target escapes artifacts directory.' }
+    if (Test-Path -LiteralPath $artifactRoot) { Remove-Item -LiteralPath $artifactRoot -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
     Copy-Item $launcherExe (Join-Path $artifactRoot 'pztrainer_launcher.exe')
     Copy-Item (Join-Path $repoRoot 'README.md') (Join-Path $artifactRoot 'README.md')
     Copy-Item (Join-Path $repoRoot 'CHANGELOG.md') (Join-Path $artifactRoot 'CHANGELOG.md')
+    Copy-Item (Join-Path $repoRoot 'trainer\lua') (Join-Path $artifactRoot 'lua') -Recurse
 
-    $hashLines = Get-ChildItem $artifactRoot -File | Sort-Object Name | ForEach-Object {
+    $docs = Join-Path $artifactRoot 'docs'
+    New-Item -ItemType Directory -Path $docs | Out-Null
+    foreach ($name in @('RECORDED_MEDIA_SILENT_AIM.md','VISIBILITY_DEFAULT_CONFIG.md','MODEL_COLOUR_FIXES.md','MOVEABLE_ITEMS.md','ITEM_ESP.md','CHARACTER_MATERIALS.md')) {
+        Copy-Item -LiteralPath (Join-Path $repoRoot "docs\$name") -Destination $docs
+    }
+
+    $hashLines = Get-ChildItem $artifactRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
         $hash = Get-FileHash $_.FullName -Algorithm SHA256
-        "$($hash.Hash.ToLowerInvariant())  $($_.Name)"
+        $relativePath = $_.FullName.Substring($artifactRoot.Length + 1).Replace('\', '/')
+        "$($hash.Hash.ToLowerInvariant())  $relativePath"
     }
     $hashLines | Set-Content (Join-Path $artifactRoot 'SHA256SUMS.txt') -Encoding ascii
     $zip = "$artifactRoot.zip"

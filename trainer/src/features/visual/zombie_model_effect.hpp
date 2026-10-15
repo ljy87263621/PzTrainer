@@ -11,6 +11,9 @@ enum class ZombieModelEffect {
     Iridescent,
     WaterFlow,
     Glossy,
+    Thermal,
+    WhiteHot,
+    Count,
 };
 
 const char* ZombieModelEffectLabel(ZombieModelEffect effect);

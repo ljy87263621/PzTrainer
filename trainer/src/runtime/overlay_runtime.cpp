@@ -1,3 +1,4 @@
+#include "settings/configuration_store.hpp"
 #include "runtime/overlay_runtime.hpp"
 
 #include "vmprotect.hpp"
@@ -44,6 +45,7 @@
 #include "features/aim/legit_aim.hpp"
 #include "features/aim/rage_aim.hpp"
 #include "features/visual/native_model_chams.hpp"
+#include "features/visual/model_visual_policy.hpp"
 #include "features/visual/viewpoint_model_chams.hpp"
 #include "features/visual/player_esp.hpp"
 #include "features/visual/player_visual_settings.hpp"
@@ -394,7 +396,7 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             features::visual::GetVehicleVisualSettings();
         bridge::ZombieModelVisualRequest model_visual{};
         model_visual.enabled = visual_settings.zombie_esp &&
-            visual_settings.model_effect != features::visual::ZombieModelEffect::Disabled;
+            features::visual::ModelVisualsEnabled(visual_settings.model_effect, visual_settings.model_edge_glow);
         const auto copy_model_color = [](const ImVec4& source) {
             bridge::ZombieModelVisualColor color{};
             color.red = source.x;
@@ -415,8 +417,7 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
         model_visual.force_visible = visual_settings.force_model_visibility;
         bridge::ZombieModelVisualRequest player_model_visual{};
         player_model_visual.enabled = player_visual_settings.player_esp &&
-            player_visual_settings.model_effect !=
-                features::visual::ZombieModelEffect::Disabled;
+            features::visual::ModelVisualsEnabled(player_visual_settings.model_effect, player_visual_settings.model_edge_glow);
         player_model_visual.normal = copy_model_color(
             features::visual::PlayerModelCaptureMarker(
                 features::visual::ZombieVisualState::Default));
@@ -434,8 +435,7 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             player_visual_settings.force_model_visibility;
         bridge::ZombieModelVisualRequest animal_model_visual{};
         animal_model_visual.enabled = animal_visual_settings.animal_esp &&
-            animal_visual_settings.model_effect !=
-                features::visual::ZombieModelEffect::Disabled;
+            features::visual::ModelVisualsEnabled(animal_visual_settings.model_effect, animal_visual_settings.model_edge_glow);
         animal_model_visual.normal = copy_model_color(
             features::visual::AnimalModelCaptureMarker(
                 features::visual::ZombieVisualState::Default));
@@ -453,8 +453,7 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             animal_visual_settings.force_model_visibility;
         bridge::ZombieModelVisualRequest vehicle_model_visual{};
         vehicle_model_visual.enabled = vehicle_visual_settings.vehicle_esp &&
-            vehicle_visual_settings.model_effect !=
-                features::visual::ZombieModelEffect::Disabled;
+            features::visual::ModelVisualsEnabled(vehicle_visual_settings.model_effect, vehicle_visual_settings.model_edge_glow);
         vehicle_model_visual.normal = copy_model_color(
             features::visual::VehicleModelCaptureMarker(
                 features::visual::ZombieVisualState::Default));
@@ -658,6 +657,12 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
         bridge::ApplyPendingLuaFeatureWrites();
         bridge::RefreshItemCatalog();
         bridge::RefreshLuaFeatureRegistry();
+        if(bridge::GetCurrentJniEnvironment()!=nullptr && frame.gate_status==bridge::GateStatus::SinglePlayerAllowed) {
+            settings::LoadDefaultConfigurationOnce();
+            static std::string previous_default_message;
+            const auto& message=settings::DefaultConfigurationLoadMessage();
+            if(message!=previous_default_message) {Log(message);previous_default_message=message;}
+        }
         bridge::UpdateLuaScriptBridge();
         bridge::UpdateExtensionBridge(g_menu_visible.load());
         bridge::UpdatePlayerHealthBridge();
@@ -769,7 +774,7 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
                     std::to_string(diagnostics.outline_programs) + " instancedPrograms=" +
                     std::to_string(diagnostics.instanced_programs) + " vehiclePrograms=" +
                     std::to_string(diagnostics.vehicle_programs) + " vehicleTintedDrawCalls=" +
-                    std::to_string(diagnostics.vehicle_tinted_draw_calls));
+                    std::to_string(diagnostics.vehicle_tinted_draw_calls)+" error="+diagnostics.material_error);
                 g_logged_model_chams_diagnostics = true;
             }
         } else {
@@ -788,10 +793,12 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
         if (g_menu_visible.load()) {
             ui::PrepareGlassBlur();
         }
-        features::visual::DrawZombieEsp(esp_frame, visual_settings);
-        features::visual::DrawPlayerEsp(esp_frame, player_visual_settings);
-        features::visual::DrawAnimalEsp(esp_frame, animal_visual_settings);
-        features::visual::DrawVehicleEsp(esp_frame, vehicle_visual_settings);
+        if (bridge::ShouldDrawEsp(viewpoint_settings, viewpoint_status)) {
+            features::visual::DrawZombieEsp(esp_frame, visual_settings);
+            features::visual::DrawPlayerEsp(esp_frame, player_visual_settings);
+            features::visual::DrawAnimalEsp(esp_frame, animal_visual_settings);
+            features::visual::DrawVehicleEsp(esp_frame, vehicle_visual_settings);
+        }
         features::visual::DrawWeaponRay();
         ui::DrawTeleportCooldownOverlay();
 

@@ -1,3 +1,4 @@
+#include "features/visual/visibility_options.hpp"
 #include "features/visual/animal_esp.hpp"
 #include "features/visual/direction_indicator.hpp"
 
@@ -37,15 +38,17 @@ void DrawHealthBar(ImDrawList* draw, const ImVec2& minimum,
 }  // namespace
 
 void DrawAnimalEsp(const bridge::FrameSnapshot& frame,
-                   const AnimalVisualSettings& settings) {
-    if (!settings.animal_esp ||
+                   const AnimalVisualSettings& input_settings) {
+    if (!input_settings.animal_esp ||
         frame.gate_status != bridge::GateStatus::SinglePlayerAllowed) return;
 
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
-    if (settings.ray_esp && frame.has_local_screen_position) {
+    if (input_settings.ray_esp && frame.has_local_screen_position) {
         const ImVec2 source(frame.local_screen_x, frame.local_screen_y);
         for (const bridge::AnimalSnapshot& animal : frame.animals) {
+            const auto settings=FilterVisibility(input_settings,GetVisibilityOptions(),VisualCategory::Animals,animal.game_visible);
+            if (!settings.ray_esp) continue;
             const ImVec2 target(animal.screen_x, animal.screen_y);
             DrawDirectionIndicator(draw, source, target, settings.ray_color);
         }
@@ -59,6 +62,7 @@ void DrawAnimalEsp(const bridge::FrameSnapshot& frame,
         {{4, 16}}, {{16, 17}}, {{17, 18}},
     }};
     for (const bridge::AnimalSnapshot& animal : frame.animals) {
+        const auto settings=FilterVisibility(input_settings,GetVisibilityOptions(),VisualCategory::Animals,animal.game_visible);
         if (animal.screen_x < -100.0f || animal.screen_y < -140.0f ||
             animal.screen_x > display.x + 100.0f ||
             animal.screen_y > display.y + 100.0f) continue;

@@ -236,6 +236,9 @@ void DrawConfigurationManager() {
     ImGui::Dummy(ImVec2(0.0f, 3.0f));
     components::BeginCompactCard(
         "ConfigurationManager", nullptr, ImVec2(0.0f, 0.0f));
+    if(!settings::DefaultConfigurationLoadMessage().empty()) {
+        ImGui::TextWrapped("%s",settings::DefaultConfigurationLoadMessage().c_str());
+    }
 
     ImGui::SetNextItemWidth(U(260.0f));
     ImGui::InputTextWithHint(
@@ -265,9 +268,32 @@ void DrawConfigurationManager() {
         }
         for (const settings::ConfigurationInfo& configuration :
              configurations) {
-            if (ImGui::Selectable(
-                    configuration.name.c_str(),
-                    configuration.name == g_selected_configuration)) {
+            ImGui::PushID(configuration.name.c_str());
+            const float row_height=U(27.0f);
+            const ImVec2 button_position=ImGui::GetCursorScreenPos();
+            const bool is_default=configuration.name==settings::DefaultConfigurationName();
+            if(ImGui::InvisibleButton("DefaultConfiguration",ImVec2(row_height,row_height))) {
+                std::string error;
+                if(settings::SetDefaultConfiguration(is_default?"":configuration.name,error))
+                    SetStatus(T(is_default?"已取消默认配置":"默认配置将在下次启动自动加载"));
+                else SetStatus(error.c_str(),true);
+            }
+            auto* draw=ImGui::GetWindowDrawList();
+            const ImVec2 center(button_position.x+row_height*0.5f,button_position.y+row_height*0.5f);
+            draw->AddCircle(center,U(6.0f),ImGui::GetColorU32(is_default?components::kAccent:components::kMuted),16,U(1.5f));
+            if(is_default)draw->AddCircleFilled(center,U(3.2f),ImGui::GetColorU32(components::kAccent),16);
+            if(ImGui::IsItemHovered())ImGui::SetTooltip("%s",T(is_default?"取消默认启动配置":"设为默认启动配置"));
+            ImGui::SameLine(0,U(4.0f));
+            const ImVec2 name_position=ImGui::GetCursorScreenPos();
+            const float name_width=std::max(U(40.0f),ImGui::GetContentRegionAvail().x);
+            const bool selected=configuration.name==g_selected_configuration;
+            const bool clicked=ImGui::InvisibleButton("SelectConfiguration",ImVec2(name_width,row_height));
+            if(selected || ImGui::IsItemHovered())draw->AddRectFilled(name_position,ImVec2(name_position.x+name_width,name_position.y+row_height),
+                ImGui::GetColorU32(ImVec4(0.12f,0.19f,0.34f,selected?0.9f:0.5f)),U(4.0f));
+            draw->AddText(ImVec2(name_position.x+U(6.0f),name_position.y+(row_height-ImGui::GetFontSize())*0.5f),
+                ImGui::GetColorU32(components::kText),configuration.name.c_str());
+            ImGui::PopID();
+            if (clicked) {
                 g_selected_configuration = configuration.name;
                 std::fill(
                     g_configuration_name.begin(),

@@ -49,6 +49,7 @@ struct ZombieSnapshot {
     bool unstable_pose = false;
     bool behind_wall = false;
     bool in_view = false;
+    bool game_visible = false;
     float forward_x = 0.0f;
     float forward_y = 1.0f;
     int model_instance_count = 0;
@@ -81,6 +82,7 @@ struct PlayerSnapshot {
     bool invisible = false;
     bool behind_wall = false;
     bool in_view = false;
+    bool game_visible = false;
     bool has_bones = false;
     int bone_failure = 0;
     float bone_debug_row[3]{};
@@ -96,6 +98,7 @@ struct AnimalSnapshot : PlayerSnapshot {
 };
 
 struct VehicleSnapshot {
+    std::int32_t identity = 0;
     float world_x = 0.0f;
     float world_y = 0.0f;
     float world_z = 0.0f;
@@ -108,6 +111,7 @@ struct VehicleSnapshot {
     std::string name;
     bool behind_wall = false;
     bool in_view = false;
+    bool game_visible = false;
     bool all_doors_locked = false;
     bool any_door_locked = false;
     bool has_key = false;

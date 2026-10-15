@@ -1,11 +1,11 @@
 #include "ui/item_generator.hpp"
+#include "bridge/item_catalog_search.hpp"
 #include "ui/item_generator_text.hpp"
 
 #include <imgui.h>
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -217,18 +217,8 @@ bool ResolveMethod(const ItemCatalogEntry& item, ItemSpawnMethod& method) {
     return false;
 }
 
-std::string LowerAscii(std::string value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return value;
-}
-
 bool MatchesSearch(const ItemCatalogEntry& item) {
-    if (g_search[0] == '\0') return true;
-    const std::string search = LowerAscii(g_search);
-    return LowerAscii(item.display_name).find(search) != std::string::npos ||
-           LowerAscii(item.full_type).find(search) != std::string::npos;
+    return bridge::ItemCatalogMatchesSearch(item, g_search);
 }
 
 std::vector<std::string> BuildCategories(
@@ -588,7 +578,7 @@ void DrawSpawnControls(const std::vector<ItemCatalogEntry>& catalog,
 void DrawRefreshButton(float width) {
     if (controls::ActionButton("刷新物品列表", false, width)) {
         if (bridge::ForceRefreshItemCatalog()) {
-            g_status = "物品列表已刷新";
+            g_status = "物品列表已刷新 · " + bridge::GetItemCatalogStatus();
             ClearCorpsePayloadSelection();
         } else {
             g_status = "物品列表刷新失败，已保留当前列表";

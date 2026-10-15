@@ -1,3 +1,4 @@
+#include "features/visual/visibility_options.hpp"
 #include "features/visual/zombie_esp.hpp"
 
 #include <imgui.h>
@@ -48,8 +49,8 @@ void DrawHealthBar(ImDrawList* draw_list, const ImVec2& top_left,
 
 }  // namespace
 
-void DrawZombieEsp(const bridge::FrameSnapshot& frame, const VisualSettings& settings) {
-    if (!settings.zombie_esp ||
+void DrawZombieEsp(const bridge::FrameSnapshot& frame, const VisualSettings& input_settings) {
+    if (!input_settings.zombie_esp ||
         frame.gate_status != bridge::GateStatus::SinglePlayerAllowed) {
         return;
     }
@@ -57,6 +58,7 @@ void DrawZombieEsp(const bridge::FrameSnapshot& frame, const VisualSettings& set
     ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
     const ImVec2 display_size = ImGui::GetIO().DisplaySize;
     for (const bridge::ZombieSnapshot& zombie : frame.zombies) {
+        const auto settings=FilterVisibility(input_settings,GetVisibilityOptions(),VisualCategory::Zombies,zombie.game_visible);
         if (zombie.screen_x < -80.0f || zombie.screen_y < -120.0f ||
             zombie.screen_x > display_size.x + 80.0f ||
             zombie.screen_y > display_size.y + 80.0f) {

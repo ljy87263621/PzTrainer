@@ -1,4 +1,7 @@
 #include "bridge/item_bridge.hpp"
+#include "bridge/moveable_item_catalog.hpp"
+#include "bridge/recorded_media_catalog.hpp"
+#include "bridge/item_catalog_search.hpp"
 
 #include "vmprotect.hpp"
 
@@ -94,6 +97,7 @@ struct Bindings {
 
 Bindings g_bindings;
 std::vector<ItemCatalogEntry> g_catalog;
+std::string g_catalog_status;
 ItemSpawnResult g_last_result;
 std::chrono::steady_clock::time_point g_inventory_refresh_at{};
 int g_inventory_refresh_passes = 0;
@@ -101,6 +105,8 @@ AsyncObjectMethodCall g_inventory_refresh_call;
 
 enum class LocalSpawnStage {
     Inventory,
+    CreateMoveable,
+    CreateRecordedMedia,
     AddDirectToInventory,
     ValidateInventory,
     Square,
@@ -529,6 +535,8 @@ bool InvokeIgnoringResult(JNIEnv* env, jobject target, const char* method_name,
 const char* LocalSpawnStageName(LocalSpawnStage stage) {
     switch (stage) {
         case LocalSpawnStage::Inventory: return "读取背包";
+        case LocalSpawnStage::CreateMoveable: return "创建家具部件";
+        case LocalSpawnStage::CreateRecordedMedia: return "绑定录像带节目";
         case LocalSpawnStage::AddDirectToInventory: return "原版直接加入背包";
         case LocalSpawnStage::ValidateInventory: return "验证背包状态";
         case LocalSpawnStage::Square: return "读取位置";
@@ -575,7 +583,9 @@ void FinishLocalSpawnItem(JNIEnv* env) {
         ResetLocalSpawnTask(env);
         return;
     }
-    g_local_spawn_task.stage =
+    g_local_spawn_task.stage = NeedsRecordedMediaCreation(g_local_spawn_task.full_type)
+        ? LocalSpawnStage::CreateRecordedMedia : IsDynamicMoveableItemType(g_local_spawn_task.full_type)
+        ? LocalSpawnStage::CreateMoveable :
         g_local_spawn_task.destination == ItemSpawnDestination::Backpack
         ? LocalSpawnStage::AddDirectToInventory
         : LocalSpawnStage::SpawnGround;
@@ -599,7 +609,30 @@ bool QueueLocalSpawnStage(JNIEnv* env) {
             queued = QueueObjectMethodOnMainThread(
                 env, task.player, "getInventory", {}, task.call);
             break;
+        case LocalSpawnStage::CreateRecordedMedia: {
+            std::string error;
+            jclass helper=RecordedMediaItemHelper(env,error);
+            jstring key=env->NewStringUTF(task.full_type.c_str());
+            if(helper && key) queued=QueueObjectMethodOnMainThread(
+                env,helper,"create",{key},task.call);
+            DeleteLocalRef(env,key);
+            break;
+        }
+        case LocalSpawnStage::CreateMoveable: {
+            jstring item_type = env->NewStringUTF(task.full_type.c_str());
+            if (item_type != nullptr) {
+                queued = QueueObjectMethodOnMainThread(
+                    env, g_bindings.inventory_item_factory, "CreateItem", {item_type}, task.call);
+            }
+            DeleteLocalRef(env, item_type);
+            break;
+        }
         case LocalSpawnStage::AddDirectToInventory: {
+            if (NeedsPreparedItemCreation(task.full_type)) {
+                queued = QueueObjectMethodOnMainThread(
+                    env, task.inventory, "AddItem", {task.item}, task.call);
+                break;
+            }
             jstring item_type = env->NewStringUTF(task.full_type.c_str());
             if (item_type != nullptr) {
                 queued = QueueObjectMethodOnMainThread(
@@ -622,9 +655,13 @@ bool QueueLocalSpawnStage(JNIEnv* env) {
             jobject y = BoxFloat(env, 0.5f);
             jobject z = BoxFloat(env, 0.0f);
             if (item_type != nullptr && x != nullptr && y != nullptr && z != nullptr) {
-                queued = QueueObjectMethodOnMainThread(
-                    env, task.square, "SpawnWorldInventoryItem",
-                    {item_type, x, y, z}, task.call);
+                if (NeedsPreparedItemCreation(task.full_type)) {
+                    queued = QueueObjectMethodOnMainThread(
+                        env, task.square, "AddWorldInventoryItem", {task.item, x, y, z}, task.call);
+                } else {
+                    queued = QueueObjectMethodOnMainThread(
+                        env, task.square, "SpawnWorldInventoryItem", {item_type, x, y, z}, task.call);
+                }
             }
             DeleteLocalRef(env, z);
             DeleteLocalRef(env, y);
@@ -671,9 +708,32 @@ void AdvanceLocalSpawnTask(JNIEnv* env) {
         case LocalSpawnStage::Inventory:
             valid = StoreGlobalResult(env, result, task.inventory);
             task.stage = task.destination == ItemSpawnDestination::Backpack
-                ? LocalSpawnStage::AddDirectToInventory
+                ? (NeedsRecordedMediaCreation(task.full_type) ? LocalSpawnStage::CreateRecordedMedia : IsDynamicMoveableItemType(task.full_type) ? LocalSpawnStage::CreateMoveable : LocalSpawnStage::AddDirectToInventory)
                 : LocalSpawnStage::Square;
             break;
+        case LocalSpawnStage::CreateRecordedMedia: {
+            jclass type=result ? env->GetObjectClass(result) : nullptr;
+            jmethodID getter=type ? env->GetMethodID(type,"isRecordedMedia","()Z") : nullptr;
+            valid=getter && !ClearException(env) && env->CallBooleanMethod(result,getter)==JNI_TRUE;
+            valid=valid && !ClearException(env) && StoreGlobalResult(env,result,task.item);
+            DeleteLocalRef(env,type);
+            task.stage=task.destination==ItemSpawnDestination::Backpack
+                ? LocalSpawnStage::AddDirectToInventory : LocalSpawnStage::SpawnGround;
+            break;
+        }
+        case LocalSpawnStage::CreateMoveable: {
+            valid = result != nullptr;
+            jclass type = result ? env->GetObjectClass(result) : nullptr;
+            jmethodID getter = type ? env->GetMethodID(type,"getWorldSprite","()Ljava/lang/String;") : nullptr;
+            jstring sprite = getter && !ClearException(env)
+                ? static_cast<jstring>(env->CallObjectMethod(result,getter)) : nullptr;
+            valid = valid && !ClearException(env) && JavaString(env,sprite)==task.full_type.substr(kDynamicMoveablePrefix.size());
+            DeleteLocalRef(env,sprite); DeleteLocalRef(env,type);
+            valid = valid && StoreGlobalResult(env,result,task.item);
+            task.stage = task.destination == ItemSpawnDestination::Backpack
+                ? LocalSpawnStage::AddDirectToInventory : LocalSpawnStage::SpawnGround;
+            break;
+        }
         case LocalSpawnStage::AddDirectToInventory:
             valid = StoreGlobalResult(env, result, task.item);
             task.stage = LocalSpawnStage::ValidateInventory;
@@ -689,7 +749,7 @@ void AdvanceLocalSpawnTask(JNIEnv* env) {
             break;
         case LocalSpawnStage::Square:
             valid = StoreGlobalResult(env, result, task.square);
-            task.stage = LocalSpawnStage::SpawnGround;
+            task.stage = NeedsRecordedMediaCreation(task.full_type) ? LocalSpawnStage::CreateRecordedMedia : IsDynamicMoveableItemType(task.full_type) ? LocalSpawnStage::CreateMoveable : LocalSpawnStage::SpawnGround;
             break;
         case LocalSpawnStage::SpawnGround:
             valid = StoreGlobalResult(env, result, task.item);
@@ -849,6 +909,11 @@ bool RefreshItemCatalogInternal(bool force_refresh) {
         refreshed_catalog.push_back(std::move(entry));
     }
     env->DeleteLocalRef(items);
+    const std::size_t regular_count = refreshed_catalog.size();
+    std::string moveable_error;
+    const std::size_t furniture_count = AppendMoveableItemCatalog(env, refreshed_catalog, moveable_error);
+    std::string media_error;
+    const std::size_t media_count=AppendRecordedMediaCatalog(env,refreshed_catalog,media_error);
     for (ItemCatalogEntry& entry : refreshed_catalog) {
         if (ammo_types.find(entry.full_type) != ammo_types.end()) {
             entry.spawn_method_mask |=
@@ -862,10 +927,16 @@ bool RefreshItemCatalogInternal(bool force_refresh) {
     std::sort(refreshed_catalog.begin(), refreshed_catalog.end(),
               [](const ItemCatalogEntry& left, const ItemCatalogEntry& right) {
                   if (left.category != right.category) return left.category < right.category;
-                  return left.display_name < right.display_name;
+                  if (left.display_name != right.display_name) return left.display_name < right.display_name;
+                  return left.full_type < right.full_type;
               });
     if (refreshed_catalog.empty()) return false;
     g_catalog = std::move(refreshed_catalog);
+    g_catalog_status = "普通物品 " + std::to_string(regular_count) +
+        " · 家具图块物品 " + std::to_string(furniture_count);
+    g_catalog_status += " · 录制节目 " + std::to_string(media_count);
+    if (!moveable_error.empty()) g_catalog_status += " · " + moveable_error;
+    if (!media_error.empty()) g_catalog_status += " · " + media_error;
     return true;
 }
 
@@ -876,6 +947,8 @@ bool RefreshItemCatalog() {
 bool ForceRefreshItemCatalog() {
     return RefreshItemCatalogInternal(true);
 }
+
+const std::string& GetItemCatalogStatus() { return g_catalog_status; }
 
 void UpdateItemBridge() {
     JNIEnv* env = GetCurrentJniEnvironment();
@@ -966,6 +1039,14 @@ const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
     }
     g_last_result = ItemSpawnResult{};
     g_last_result.attempted = true;
+    if (IsDynamicMoveableItemType(full_type) && method != ItemSpawnMethod::Game) {
+        g_last_result.message = "家具图块物品仅支持游戏原生生成";
+        return g_last_result;
+    }
+    if (IsRecordedMediaKey(full_type) && method != ItemSpawnMethod::Game) {
+        g_last_result.message = "指定节目录像带仅支持游戏原生生成";
+        return g_last_result;
+    }
     JNIEnv* env = GetCurrentJniEnvironment();
     if (env == nullptr || !Initialize(env)) {
         g_last_result.message = "物品桥接尚未初始化";
@@ -1249,6 +1330,10 @@ const ItemSpawnResult& SpawnCorpsePayloadBatch(
     int requested_total = 0;
     for (const ItemSpawnBatchEntry& item : items) {
         if (item.full_type.empty()) continue;
+        if (IsDynamicMoveableItemType(item.full_type) || IsRecordedMediaKey(item.full_type)) {
+            g_last_result.message = "家具和指定节目录像带仅支持游戏原生生成";
+            return g_last_result;
+        }
         const int quantity = std::clamp(item.quantity, 1, 100);
         payload.emplace_back(item.full_type, quantity);
         requested_total += quantity;

@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <type_traits>
 
 #include "bridge/player_ammo_bridge.hpp"
 #include "bridge/extension_bridge.hpp"
@@ -284,9 +285,9 @@ void AddStateColor(
 }
 
 std::vector<std::pair<std::string, features::visual::ZombieModelEffect>>
-ModelEffectOptions() {
+ModelEffectOptions(bool character_materials) {
     using features::visual::ZombieModelEffect;
-    return {
+    std::vector<std::pair<std::string, ZombieModelEffect>> options{
         {"disabled", ZombieModelEffect::Disabled},
         {"shaded", ZombieModelEffect::Shaded},
         {"solid", ZombieModelEffect::Solid},
@@ -296,6 +297,11 @@ ModelEffectOptions() {
         {"water_flow", ZombieModelEffect::WaterFlow},
         {"glossy", ZombieModelEffect::Glossy},
     };
+    if (character_materials) {
+        options.emplace_back("thermal", ZombieModelEffect::Thermal);
+        options.emplace_back("white_hot", ZombieModelEffect::WhiteHot);
+    }
+    return options;
 }
 
 std::vector<std::pair<std::string, features::aim::WeaponGroup>>
@@ -389,7 +395,9 @@ void AddModelFeatures(
     AddStateColor(entries, prefix + ".model_color", group, "模型颜色", settings.model_colors);
     AddEnumeration(
         entries, prefix + ".model_effect", group, "模型效果",
-        &settings.model_effect, ModelEffectOptions());
+        &settings.model_effect, ModelEffectOptions(
+            std::is_same_v<Settings, features::visual::VisualSettings> ||
+            std::is_same_v<Settings, features::visual::PlayerVisualSettings>));
     AddBool(entries, prefix + ".model_edge_glow", group, "模型边缘发光", &settings.model_edge_glow);
     AddColor(entries, prefix + ".model_edge_glow_color", group, "模型边缘颜色", &settings.model_edge_glow_color);
     AddBool(entries, prefix + ".force_model_visibility", group, "强制显示上色模型", &settings.force_model_visibility);

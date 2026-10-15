@@ -40,6 +40,7 @@ struct ItemCatalogEntry {
     std::string full_type;
     std::string display_name;
     std::string category;
+    std::string search_terms;
     unsigned int texture_id = 0;
     float uv_min_x = 0.0f;
     float uv_min_y = 0.0f;
@@ -67,6 +68,7 @@ bool ForceRefreshItemCatalog();
 void UpdateItemBridge();
 ItemSessionMode GetItemSessionMode();
 const std::vector<ItemCatalogEntry>& GetItemCatalog();
+const std::string& GetItemCatalogStatus();
 const ItemSpawnResult& GetLastItemSpawnResult();
 const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
                                  ItemSpawnDestination destination,

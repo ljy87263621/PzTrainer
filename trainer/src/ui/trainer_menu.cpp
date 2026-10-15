@@ -1,3 +1,4 @@
+#include "features/visual/visibility_options.hpp"
 #include "ui/trainer_menu.hpp"
 
 #include <imgui.h>
@@ -686,6 +687,28 @@ void SelectVisualCategoryOnCardClick(int category) {
     }
 }
 
+void DrawVisibilityControls(features::visual::VisualCategory category) {
+    using namespace features::visual;
+    static std::array<bool,4> open{};
+    const unsigned index=static_cast<unsigned>(category);
+    ImGui::PushID(static_cast<int>(index)+100);
+    if (components::MoreOptionsButton("VisibilityOptions",ImVec2(30.0f,30.0f))) open[index]=!open[index];
+    ImGui::SameLine(); ImGui::TextUnformatted(settings::Translate("逐项视野检测"));
+    if (ImGui::IsItemHovered()) components::RoundedTooltip("仅实际可见：按游戏遮挡和迷雾判断。关闭时显示已加载范围内的对象。");
+    if (open[index]) {
+        constexpr const char* labels[]={"方框仅实际可见","名称仅实际可见","距离仅实际可见","骨骼仅实际可见","血条仅实际可见","方向箭头仅实际可见","管理员标记仅实际可见","车辆详情仅实际可见","发动机状态条仅实际可见","全身上色仅实际可见","边缘发光仅实际可见"};
+        for(unsigned feature=0;feature<11;feature++) {
+            if ((feature==3 || feature==4) && category==VisualCategory::Vehicles) continue;
+            if (feature==5 && category==VisualCategory::Zombies) continue;
+            if (feature==6 && category!=VisualCategory::Players) continue;
+            if ((feature==7 || feature==8) && category!=VisualCategory::Vehicles) continue;
+            auto& flag=GetVisibilityOptions().only_visible[index][feature]; bool value=flag!=0;
+            if(components::CompactToggleRow(labels[feature],&value)) flag=value?1:0;
+        }
+    }
+    ImGui::PopID();
+}
+
 void DrawVisualControls() {
     features::visual::VisualSettings& settings = features::visual::GetVisualSettings();
     DrawVisualCategoryLabel("僵尸", 0);
@@ -702,6 +725,7 @@ void DrawVisualControls() {
     CompactToggleRow("显示血条", &settings.show_health_bar);
     DrawModelEffectDropdown(&settings);
     StepperRow("最大显示距离", &settings.max_distance, 5.0f, 100.0f, 5.0f, "%.0f 格", false);
+    DrawVisibilityControls(features::visual::VisualCategory::Zombies);
     SelectVisualCategoryOnCardClick(0);
     EndCard();
 }
@@ -726,6 +750,7 @@ void DrawPlayerVisualControls() {
     DrawPlayerModelEffectDropdown(&settings);
     StepperRow("最大显示距离", &settings.max_distance,
                5.0f, 150.0f, 5.0f, "%.0f 格", false);
+    DrawVisibilityControls(features::visual::VisualCategory::Players);
     SelectVisualCategoryOnCardClick(1);
     EndCard();
 }
@@ -749,6 +774,7 @@ void DrawAnimalVisualControls() {
     DrawAnimalModelEffectDropdown(&settings);
     StepperRow("最大显示距离", &settings.max_distance,
                5.0f, 150.0f, 5.0f, "%.0f 格", false);
+    DrawVisibilityControls(features::visual::VisualCategory::Animals);
     SelectVisualCategoryOnCardClick(2);
     EndCard();
 }
@@ -771,6 +797,7 @@ void DrawVehicleVisualControls() {
     DrawVehicleModelEffectDropdown(&settings);
     StepperRow("最大显示距离", &settings.max_distance,
                10.0f, 250.0f, 10.0f, "%.0f 格", false);
+    DrawVisibilityControls(features::visual::VisualCategory::Vehicles);
     SelectVisualCategoryOnCardClick(3);
     EndCard();
 }

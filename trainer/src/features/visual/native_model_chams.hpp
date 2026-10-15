@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 #include "bridge/game_snapshot.hpp"
 #include "features/visual/player_visual_settings.hpp"
@@ -12,6 +13,7 @@
 namespace pztrainer::features::visual {
 
 struct NativeModelChamsDiagnostics {
+    std::string material_error;
     int initialization_status = 0;
     std::uint64_t draw_calls = 0;
     std::uint64_t instanced_draw_calls = 0;

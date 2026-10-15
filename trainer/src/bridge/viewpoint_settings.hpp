@@ -38,6 +38,14 @@ inline bool UseViewpointEsp(const ViewpointSettings& settings,
     return settings.esp_3d && CanUseViewpoint3D(settings, status);
 }
 
+inline bool ShouldDrawEsp(const ViewpointSettings& settings,
+                          const ViewpointStatus& status) {
+    // A requested 3D overlay must wait for its camera, rather than showing
+    // vanilla coordinates on top of an active ViewPoint scene.
+    return !settings.esp_3d || !status.mod_enabled ||
+        CanUseViewpoint3D(settings, status);
+}
+
 ViewpointSettings& GetViewpointSettings();
 const ViewpointStatus& GetViewpointStatus();
 void SetViewpointCompatibilityMode(bool enabled);

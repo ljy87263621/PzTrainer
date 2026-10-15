@@ -67,6 +67,7 @@ void TestViewpointAvailability() {
     ViewpointSettings settings;
     ViewpointStatus status;
     settings.esp_3d = true;
+    assert(ShouldDrawEsp(settings, status));
     assert(!CanUseViewpoint3D(settings, status));
     status.detected = status.ready = status.mod_enabled = true;
     assert(ViewpointBridgeReady(settings, status));
@@ -74,19 +75,27 @@ void TestViewpointAvailability() {
     status.camera_valid = true;
     assert(CanUseViewpoint3D(settings, status));
     assert(UseViewpointEsp(settings, status));
+    assert(ShouldDrawEsp(settings, status));
+    status.camera_valid = false;
+    assert(!ShouldDrawEsp(settings, status));
+    status.camera_valid = true;
     settings.esp_3d = false;
     assert(CanUseViewpoint3D(settings, status));
     assert(!UseViewpointEsp(settings, status));
+    assert(ShouldDrawEsp(settings, status));
     settings.esp_3d = true;
     settings.compatibility_mode = false;
     assert(!ViewpointBridgeReady(settings, status));
+    assert(!ShouldDrawEsp(settings, status));
     assert(!CanUseViewpoint3D(settings, status));
     assert(!UseViewpointEsp(settings, status));
     settings.compatibility_mode = true;
     status.ready = false;
+    assert(!ShouldDrawEsp(settings, status));
     assert(!UseViewpointEsp(settings, status));
     status.ready = true;
     status.mod_enabled = false;
+    assert(ShouldDrawEsp(settings, status));
     assert(!UseViewpointEsp(settings, status));
 }
 
@@ -141,6 +150,31 @@ void TestActualMod(JNIEnv* env) {
     ScreenPoint screen;
     assert(ProjectViewpointWorldPoint({100, 205, 2}, screen));
     assert(Near(screen.x, 960) && Near(screen.y, 540));
+
+    // A UI-resolution change scales matrix output once; FOV changes alter
+    // displacement from the center, without a second vanilla zoom transform.
+    assert(ProjectViewpointWorldPoint({99, 205, 2}, screen));
+    const float wide_x = screen.x;
+    RefreshViewpointCamera(env, 1280, 720);
+    assert(ProjectViewpointWorldPoint({99, 205, 2}, screen));
+    assert(Near(screen.x, wide_x * (2.0f / 3.0f)) && Near(screen.y, 360));
+    env->CallObjectMethod(matrix, env->GetMethodID(matrix_type, "setPerspective", "(FFFF)Lorg/joml/Matrix4f;"),
+        1.0471976f, 1920.0f / 1080.0f, 0.1f, 1000.0f);
+    RefreshViewpointCamera(env, 1920, 1080);
+    assert(ProjectViewpointWorldPoint({99, 205, 2}, screen));
+    assert(screen.x > wide_x);
+    env->CallObjectMethod(matrix, env->GetMethodID(matrix_type, "setPerspective", "(FFFF)Lorg/joml/Matrix4f;"),
+        1.5707963f, 1920.0f / 1080.0f, 0.1f, 1000.0f);
+    env->SetObjectField(frame, env->GetFieldID(context, "scene", "Lviewpoint/render/SceneData;"), nullptr);
+    RefreshViewpointCamera(env, 1920, 1080);
+    assert(IsViewpointActive() && !GetViewpointStatus().camera_valid);
+    assert(!ProjectViewpointWorldPoint({100, 205, 2}, screen));
+    GetViewpointSettings().esp_3d = true;
+    assert(!ShouldDrawEsp(GetViewpointSettings(), GetViewpointStatus()));
+    env->SetObjectField(frame, env->GetFieldID(context, "scene", "Lviewpoint/render/SceneData;"), scene);
+    RefreshViewpointCamera(env, 1920, 1080);
+    assert(ShouldDrawEsp(GetViewpointSettings(), GetViewpointStatus()));
+    GetViewpointSettings().esp_3d = false;
 
     FrameSnapshot original;
     original.zombies.emplace_back();

@@ -1,3 +1,5 @@
+#include <Windows.h>
+#include "features/visual/visibility_options.hpp"
 #include "settings/configuration_store.hpp"
 
 #include <algorithm>
@@ -39,8 +41,8 @@ namespace pztrainer::settings {
 namespace {
 
 constexpr std::array<char, 8> kMagic{'P', 'Z', 'C', 'F', 'G', '0', '1', '\0'};
-// Version 20 persists the explicit ViewPoint compatibility-mode switch.
-constexpr std::uint32_t kVersion = 20;
+// Version 21 appends independent actual-visibility filters without changing old payloads.
+constexpr std::uint32_t kVersion = 21;
 constexpr std::uint32_t kTargetPointMask = (1u << 15) - 1u;
 constexpr std::uint32_t kMaximumLuaScripts = 256;
 constexpr std::uint32_t kMaximumLuaControls = 4096;
@@ -901,6 +903,12 @@ void ValidateAim(features::aim::AimSettings& settings) {
 
 void ValidatePayload(ConfigurationPayload& payload) {
     ValidateAim(payload.aim);
+    payload.zombies.model_effect = ClampEnum(payload.zombies.model_effect,
+        static_cast<int>(features::visual::ZombieModelEffect::Count));
+    payload.players.model_effect = ClampEnum(payload.players.model_effect,
+        static_cast<int>(features::visual::ZombieModelEffect::Count));
+    payload.animals.model_effect = ClampEnum(payload.animals.model_effect, 8);
+    payload.vehicles.model_effect = ClampEnum(payload.vehicles.model_effect, 8);
     payload.zombies.max_distance = std::clamp(
         payload.zombies.max_distance, 5.0f, 100.0f);
     payload.players.max_distance = std::clamp(
@@ -998,6 +1006,38 @@ std::vector<ConfigurationInfo> ListConfigurations() {
     return configurations;
 }
 
+bool WriteConfigurationFile(const std::filesystem::path& path,const ConfigurationPayload& payload,
+        const std::vector<bridge::LuaScriptConfiguration>& lua_configuration,
+        const bridge::ExtensionOptions& extensions,const std::array<std::uint8_t,4>& viewpoint_flags,
+        std::uint8_t fast_aiming_delay,const features::visual::VisibilityOptions& visibility,std::string& error) {
+    std::error_code filesystem_error;
+    const FileHeader header{kMagic, kVersion,
+                            static_cast<std::uint32_t>(sizeof(payload))};
+    const auto temporary = std::filesystem::path(path.wstring()+L".tmp."+std::to_wstring(GetCurrentProcessId())+L"."+std::to_wstring(GetTickCount64()));
+    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        error = "Unable to open configuration file.";
+        return false;
+    }
+    output.write(reinterpret_cast<const char*>(&header), sizeof(header));
+    output.write(reinterpret_cast<const char*>(&payload), sizeof(payload));
+    if (!output || !WriteLuaConfiguration(output, lua_configuration) ||
+        !WriteValue(output, extensions.flags) || !WriteValue(output, extensions.kill_range) ||
+        !WriteValue(output, viewpoint_flags) || !WriteValue(output, fast_aiming_delay) ||
+        !features::visual::WriteVisibilityOptions(output, visibility)) {
+        output.close(); std::filesystem::remove(temporary,filesystem_error);
+        error = "Unable to write configuration file.";
+        return false;
+    }
+    output.flush();
+    const bool flushed=static_cast<bool>(output); output.close();
+    if (!flushed || output.fail() || !MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) {
+        std::filesystem::remove(temporary,filesystem_error);
+        error="Unable to atomically replace configuration file."; return false;
+    }
+    return true;
+}
+
 bool SaveConfiguration(const std::string& name, std::string& error) {
     std::filesystem::path path;
     if (!ConfigurationPath(name, path, error)) return false;
@@ -1011,33 +1051,25 @@ bool SaveConfiguration(const std::string& name, std::string& error) {
     const ConfigurationPayload payload = CaptureConfiguration();
     const std::vector<bridge::LuaScriptConfiguration> lua_configuration =
         bridge::CaptureLuaScriptConfiguration();
-    const FileHeader header{kMagic, kVersion,
-                            static_cast<std::uint32_t>(sizeof(payload))};
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
-    if (!output) {
-        error = "Unable to open configuration file.";
-        return false;
-    }
-    output.write(reinterpret_cast<const char*>(&header), sizeof(header));
-    output.write(reinterpret_cast<const char*>(&payload), sizeof(payload));
-    const bridge::ExtensionOptions extensions = bridge::GetExtensionOptions();
-    const auto& viewpoint = bridge::GetViewpointSettings();
-    const std::array<std::uint8_t, 4> viewpoint_flags{
-        viewpoint.esp_3d, viewpoint.legit_3d, viewpoint.rage_3d,
-        viewpoint.compatibility_mode};
-    const std::uint8_t fast_aiming_delay = bridge::GetPlayerAimingDelayStatus().enabled;
-    if (!output || !WriteLuaConfiguration(output, lua_configuration) ||
-        !WriteValue(output, extensions.flags) || !WriteValue(output, extensions.kill_range) ||
-        !WriteValue(output, viewpoint_flags) || !WriteValue(output, fast_aiming_delay)) {
-        error = "Unable to write configuration file.";
-        return false;
-    }
-    return true;
+    const auto& viewpoint=bridge::GetViewpointSettings();
+    const std::array<std::uint8_t,4> viewpoint_flags{viewpoint.esp_3d,viewpoint.legit_3d,viewpoint.rage_3d,viewpoint.compatibility_mode};
+    return WriteConfigurationFile(path,payload,lua_configuration,bridge::GetExtensionOptions(),viewpoint_flags,
+        bridge::GetPlayerAimingDelayStatus().enabled,features::visual::GetVisibilityOptions(),error);
 }
 
-bool LoadConfiguration(const std::string& name, std::string& error) {
-    std::filesystem::path path;
-    if (!ConfigurationPath(name, path, error)) return false;
+struct StoredConfiguration {
+    ConfigurationPayload payload{};
+    std::vector<bridge::LuaScriptConfiguration> lua_configuration;
+    bridge::ExtensionOptions extensions{};
+    std::array<std::uint8_t,4> viewpoint_flags{};
+    std::uint8_t fast_aiming_delay=0;
+    bool has_lua_configuration=false;
+    features::visual::VisibilityOptions visibility{};
+    std::uint32_t source_version=0;
+    bool missing_visibility_options=false;
+};
+
+bool ReadAndUpgradeConfigurationFile(const std::filesystem::path& path,StoredConfiguration& stored,std::string& error) {
     std::ifstream input(path, std::ios::binary);
     if (!input) {
         error = "Configuration file was not found.";
@@ -1049,13 +1081,14 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         error = "Configuration file is invalid or uses another version.";
         return false;
     }
-    ConfigurationPayload payload{};
-    std::vector<bridge::LuaScriptConfiguration> lua_configuration;
-    bridge::ExtensionOptions extensions;
-    std::array<std::uint8_t, 4> viewpoint_flags{};
-    std::array<std::uint8_t, 3> legacy_viewpoint_flags{};
-    std::uint8_t fast_aiming_delay = 0;
-    bool has_lua_configuration = false;
+    auto& payload=stored.payload;
+    auto& lua_configuration=stored.lua_configuration;
+    auto& extensions=stored.extensions;
+    auto& viewpoint_flags=stored.viewpoint_flags;
+    auto& fast_aiming_delay=stored.fast_aiming_delay;
+    auto& has_lua_configuration=stored.has_lua_configuration;
+    auto& visibility=stored.visibility;
+    std::array<std::uint8_t,3> legacy_viewpoint_flags{};
 
     const auto read_extensions = [&]() {
         if (!ReadValue(input, extensions.flags) ||
@@ -1096,7 +1129,7 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         return true;
     };
 
-    if (header.version == kVersion &&
+    if ((header.version == kVersion || header.version == 20) &&
         header.payload_size == sizeof(ConfigurationPayload)) {
         input.read(reinterpret_cast<char*>(&payload), sizeof(payload));
         has_lua_configuration = input &&
@@ -1104,6 +1137,9 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
         if (!read_extensions() || !read_viewpoint_flags() ||
             !read_fast_aiming_delay()) {
             return false;
+        }
+        if(header.version>=21 && !features::visual::ReadVisibilityOptions(input,visibility,&stored.missing_visibility_options)) {
+            error="Visibility configuration is invalid or incomplete."; return false;
         }
     } else if (header.version == 19 &&
                header.payload_size == sizeof(ConfigurationPayload)) {
@@ -1247,7 +1283,35 @@ bool LoadConfiguration(const std::string& name, std::string& error) {
     if (header.version < 15) {
         payload.world.show_map_players = false;
     }
+    stored.source_version=header.version;
+    ValidatePayload(payload);
+    input.close();
+    if(header.version<kVersion || stored.missing_visibility_options) {
+        const auto backup=std::filesystem::path(path.wstring()+L".v"+std::to_wstring(header.version)+L".bak");
+        std::error_code ec;
+        if(!std::filesystem::exists(backup,ec) && !std::filesystem::copy_file(path,backup,std::filesystem::copy_options::none,ec)) {
+            error="Unable to back up configuration before upgrade: "+ec.message(); return false;
+        }
+        if(!WriteConfigurationFile(path,payload,lua_configuration,extensions,viewpoint_flags,fast_aiming_delay,visibility,error))return false;
+    }
+    return true;
+}
+
+bool LoadConfiguration(const std::string& name, std::string& error) {
+    std::filesystem::path path;
+    if(!ConfigurationPath(name,path,error))return false;
+    StoredConfiguration stored;
+    if(!ReadAndUpgradeConfigurationFile(path,stored,error))return false;
+    auto& payload=stored.payload;
+    auto& lua_configuration=stored.lua_configuration;
+    auto& extensions=stored.extensions;
+    auto& viewpoint_flags=stored.viewpoint_flags;
+    auto& fast_aiming_delay=stored.fast_aiming_delay;
+    auto& has_lua_configuration=stored.has_lua_configuration;
+    auto& visibility=stored.visibility;
+
     ApplyConfiguration(payload);
+    features::visual::GetVisibilityOptions()=visibility;
     bridge::GetExtensionOptions() = extensions;
     bridge::GetViewpointSettings() = {
         viewpoint_flags[0] != 0, viewpoint_flags[1] != 0, viewpoint_flags[2] != 0,
@@ -1272,7 +1336,21 @@ bool DeleteConfiguration(const std::string& name, std::string& error) {
         error = "Configuration file was not found.";
         return false;
     }
+    if(path.stem().u8string()==DefaultConfigurationName())return SetDefaultConfiguration("",error);
     return true;
+}
+
+namespace { std::string g_default_configuration_load_message; }
+const std::string& DefaultConfigurationLoadMessage() { return g_default_configuration_load_message; }
+void LoadDefaultConfigurationOnce() {
+    static bool attempted=false;
+    if(attempted)return;
+    attempted=true;
+    const auto name=DefaultConfigurationName();
+    if(name.empty())return;
+    std::string error;
+    if(LoadConfiguration(name,error))g_default_configuration_load_message=std::string(Translate("默认配置已自动加载"))+": "+name;
+    else g_default_configuration_load_message=std::string(Translate("默认配置加载失败"))+": "+name+" — "+error;
 }
 
 }  // namespace pztrainer::settings

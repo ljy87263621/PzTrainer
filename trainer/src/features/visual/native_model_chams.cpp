@@ -1,3 +1,8 @@
+#include <jvmti.h>
+#include "bridge/main_thread_invoker.hpp"
+#include "bridge/lua_ui_bridge.hpp"
+#include "runtime/lua_bridge_resource.hpp"
+#include "features/visual/model_owner_policy.hpp"
 #include "features/visual/native_model_chams.hpp"
 
 #include <Windows.h>
@@ -19,6 +24,9 @@
 #include "bridge/world_visibility_render_bridge.hpp"
 #include "bridge/viewpoint_bridge.hpp"
 #include "features/visual/viewpoint_model_chams.hpp"
+#include "features/visual/native_model_material.hpp"
+#include "features/visual/native_model_outline.hpp"
+#include "features/visual/model_visual_policy.hpp"
 
 namespace pztrainer::features::visual {
 namespace {
@@ -64,6 +72,7 @@ using GetUniformfvFn = void(APIENTRY*)(GLuint, GLint, GLfloat*);
 using GetUniformivFn = void(APIENTRY*)(GLuint, GLint, GLint*);
 using UseProgramFn = void(APIENTRY*)(GLuint);
 using Uniform1fFn = void(APIENTRY*)(GLint, GLfloat);
+using Uniform1iFn = void(APIENTRY*)(GLint, GLint);
 using Uniform3fFn = void(APIENTRY*)(GLint, GLfloat, GLfloat, GLfloat);
 using Uniform4fFn = void(APIENTRY*)(GLint, GLfloat, GLfloat, GLfloat, GLfloat);
 using BindVertexArrayFn = void(APIENTRY*)(GLuint);
@@ -136,6 +145,7 @@ struct DrawCommand {
     GLsizei instance_count = 0;
     bool instanced = false;
     int target_color_index = -1;
+    int owner_identity = 0;
     std::array<GLint, 4> viewport{};
     GLint model_view_projection = -1;
     GLint matrix_palette = -1;
@@ -164,6 +174,11 @@ GetUniformfvFn g_get_uniform_fv = nullptr;
 GetUniformivFn g_get_uniform_iv = nullptr;
 UseProgramFn g_use_program = nullptr;
 Uniform1fFn g_uniform_1f = nullptr;
+Uniform1iFn g_uniform_1i = nullptr;
+NativeModelMaterial g_character_materials;
+NativeModelOutline g_model_outline;
+NativeModelOutline g_model_fill;
+NativeModelOutline g_model_self_mask;
 Uniform3fFn g_uniform_3f = nullptr;
 Uniform4fFn g_uniform_4f = nullptr;
 BindVertexArrayFn g_bind_vertex_array = nullptr;
@@ -504,6 +519,7 @@ int FindVehicleColorIndex(const ProgramState& state) {
             framebuffer_y / framebuffer_scale_y;
 
         for (const bridge::VehicleSnapshot& vehicle : g_capture_vehicles) {
+            if(!GetVisibilityOptions().Allows(VisualCategory::Vehicles,VisualFeature::Fill,vehicle.game_visible))continue;
             const float height = std::max(
                 20.0f, vehicle.screen_y - vehicle.screen_top_y);
             const float half_width = height * 1.125f;
@@ -586,88 +602,90 @@ void EndVehicleUniformOverride(const VehicleUniformOverride& override_state) {
 }
 
 int ResolveTrackedEntityColorIndex(const DrawCommand& command,
-                                   const bridge::FrameSnapshot& frame) {
-    if (command.instanced) return -1;
+                                    const ModelOwnerMap& owners) {
+    return command.instanced ? -1 : ResolveModelOwner(command.owner_identity,owners).group;
+}
 
-    const float* matrix = command.model_view_projection_value.data();
-    const float clip_x = command.model_view_projection_transpose == GL_TRUE
-        ? matrix[3] : matrix[12];
-    const float clip_y = command.model_view_projection_transpose == GL_TRUE
-        ? matrix[7] : matrix[13];
-    const float clip_w = matrix[15];
-    if (std::abs(clip_w) <= 0.0001f) return -1;
+jclass g_owned_capture_helper=nullptr;
+jmethodID g_current_owner=nullptr;
+jfieldID g_owned_capture_error_field=nullptr;
+std::string g_owned_capture_error;
+bridge::AsyncObjectMethodCall g_owned_capture_call;
+std::chrono::steady_clock::time_point g_next_owned_capture{};
 
-    const ImGuiIO& io = ImGui::GetIO();
-    const float framebuffer_scale_x = std::max(io.DisplayFramebufferScale.x, 0.0001f);
-    const float framebuffer_scale_y = std::max(io.DisplayFramebufferScale.y, 0.0001f);
-    const float framebuffer_x = static_cast<float>(command.viewport[0]) +
-        (clip_x / clip_w * 0.5f + 0.5f) * static_cast<float>(command.viewport[2]);
-    const float framebuffer_y = static_cast<float>(command.viewport[1]) +
-        (clip_y / clip_w * 0.5f + 0.5f) * static_cast<float>(command.viewport[3]);
-    const ImVec2 model_origin(
-        framebuffer_x / framebuffer_scale_x,
-        io.DisplaySize.y - framebuffer_y / framebuffer_scale_y);
+bool InitializeOwnedCapture(JNIEnv* env) {
+    if(g_owned_capture_helper)return true;
+    JavaVM* vm=nullptr; jvmtiEnv* tool=nullptr; std::string error;
+    const auto jar=runtime::EnsurePlayerOverridesJar(error);
+    if(jar.empty() || env->GetJavaVM(&vm)!=JNI_OK || vm->GetEnv(reinterpret_cast<void**>(&tool),JVMTI_VERSION_1_2)!=JNI_OK) {
+        g_owned_capture_error=error.empty()?"Native capture JVM interface unavailable":error;return false;
+    }
+    const bool appended=tool->AddToSystemClassLoaderSearch(jar.u8string().c_str())==JVMTI_ERROR_NONE;
+    tool->DisposeEnvironment(); if(!appended) {g_owned_capture_error="Native capture helper search-path append failed";return false;}
+    jclass helper=bridge::LoadEmbeddedJavaClass(env,"pztrainer.player.visual.NativeModelCapture",error);
+    if(!helper) {g_owned_capture_error=error;return false;}
+    g_current_owner=env->GetStaticMethodID(helper,"currentIdentity","()I");
+    g_owned_capture_error_field=env->GetStaticFieldID(helper,"error","Ljava/lang/String;");
+    if(!env->ExceptionCheck() && g_current_owner)g_owned_capture_helper=static_cast<jclass>(env->NewGlobalRef(helper));
+    if(env->ExceptionCheck())env->ExceptionClear(); env->DeleteLocalRef(helper);
+    return g_owned_capture_helper!=nullptr;
+}
 
-    const auto matches = [&model_origin](float screen_x, float screen_top_y,
-                                         float screen_y, float width_scale,
-                                         float minimum_height,
-                                         float margin_scale) {
-        const float projected_height = std::max(
-            minimum_height, screen_y - screen_top_y);
-        const float projected_width = projected_height * width_scale;
-        const float margin = std::max(8.0f, projected_height * margin_scale);
-        return model_origin.x >= screen_x - projected_width * 0.5f - margin &&
-            model_origin.x <= screen_x + projected_width * 0.5f + margin &&
-            model_origin.y >= screen_top_y - margin &&
-            model_origin.y <= screen_y + margin;
+int CurrentCapturedOwner() {
+    JNIEnv* env=bridge::GetCurrentJniEnvironment();
+    if(!env || !g_owned_capture_helper || !g_current_owner)return 0;
+    const int owner=env->CallStaticIntMethod(g_owned_capture_helper,g_current_owner);
+    if(env->ExceptionCheck()) {env->ExceptionClear();return 0;}
+    return owner;
+}
+
+void QueueOwnedCapture(const bridge::FrameSnapshot& frame,const std::array<bool,4>& enabled) {
+    JNIEnv* env=bridge::GetCurrentJniEnvironment(); if(!env)return;
+    if(g_owned_capture_call.expression) {
+        jobject result=nullptr; std::string error;
+        const auto state=bridge::PollObjectMethodOnMainThread(env,g_owned_capture_call,std::chrono::seconds(2),&result,&error);
+        if(result)env->DeleteLocalRef(result);
+        if(state==bridge::AsyncObjectMethodState::Pending)return;
+        g_owned_capture_error=error;
+        if(state==bridge::AsyncObjectMethodState::TimedOut)g_owned_capture_error="Native capture main-thread queue timed out";
+        bridge::ResetObjectMethodCall(env,g_owned_capture_call);
+    }
+    const auto now=std::chrono::steady_clock::now(); if(now<g_next_owned_capture)return;
+    g_next_owned_capture=now+std::chrono::milliseconds(16);
+    if(!InitializeOwnedCapture(env)) {g_next_owned_capture=now+std::chrono::seconds(2);return;}
+    if(g_owned_capture_error_field) {
+        auto detail=static_cast<jstring>(env->GetStaticObjectField(g_owned_capture_helper,g_owned_capture_error_field));
+        if(detail && !env->ExceptionCheck()) {
+            const char* text=env->GetStringUTFChars(detail,nullptr);
+            if(text) {if(*text)g_owned_capture_error=text;env->ReleaseStringUTFChars(detail,text);}
+        }
+        if(detail)env->DeleteLocalRef(detail);
+        if(env->ExceptionCheck())env->ExceptionClear();
+    }
+    const auto owner_map=BuildModelOwnerMap(frame);
+    std::vector<jint> owners,groups;
+    const auto append=[&](const auto& objects,int category) {
+        if(!enabled[category])return;
+        for(const auto& object:objects) {
+            const auto owner=ResolveModelOwner(object.identity,owner_map);
+            if(owner.group<0 || (!ModelLayerVisible(owner,VisualFeature::Fill) && !ModelLayerVisible(owner,VisualFeature::Rim)))continue;
+            owners.push_back(object.identity);groups.push_back(owner.group);
+        }
     };
-    const auto state_offset = [](bool behind_wall, bool in_view) {
-        return behind_wall ? 1 : in_view ? 2 : 0;
-    };
-
-    const int hinted_group = command.target_color_index >= 0
-        ? command.target_color_index / 3 : -1;
-    if (hinted_group < 0 || hinted_group == 0) {
-        for (const bridge::ZombieSnapshot& zombie : frame.zombies) {
-            if (matches(
-                    zombie.screen_x, zombie.screen_top_y, zombie.screen_y,
-                    zombie.prone ? 1.65f : 0.42f, 12.0f, 0.20f)) {
-                return state_offset(zombie.behind_wall, zombie.in_view);
-            }
-        }
-        if (hinted_group == 0) return -1;
+    append(frame.zombies,0);append(frame.players,1);append(frame.animals,2);
+    if(owners.empty())return;
+    const auto size=static_cast<jsize>(owners.size());
+    jintArray owner_array=env->NewIntArray(size),group_array=env->NewIntArray(size);
+    jfloatArray marker_array=env->NewFloatArray(48); float markers[48]{};
+    for(unsigned i=0;i<12;i++) {markers[i*4]=g_capture_target_colors[i].x;markers[i*4+1]=g_capture_target_colors[i].y;markers[i*4+2]=g_capture_target_colors[i].z;}
+    if(owner_array && group_array && marker_array) {
+        env->SetIntArrayRegion(owner_array,0,size,owners.data());env->SetIntArrayRegion(group_array,0,size,groups.data());
+        env->SetFloatArrayRegion(marker_array,0,48,markers);
+        if(!bridge::QueueObjectMethodOnMainThread(env,g_owned_capture_helper,"queue",{owner_array,group_array,marker_array},g_owned_capture_call))
+            g_owned_capture_error="Unable to queue native model capture on game thread";
     }
-
-    if (hinted_group < 0 || hinted_group == 1) {
-        for (const bridge::PlayerSnapshot& player : frame.players) {
-            if (matches(
-                    player.screen_x, player.screen_top_y, player.screen_y,
-                    player.prone ? 1.65f : 0.42f, 12.0f, 0.20f)) {
-                return 3 + state_offset(player.behind_wall, player.in_view);
-            }
-        }
-        if (hinted_group == 1) return -1;
-    }
-    if (hinted_group < 0 || hinted_group == 2) {
-        for (const bridge::AnimalSnapshot& animal : frame.animals) {
-            if (matches(
-                    animal.screen_x, animal.screen_top_y, animal.screen_y,
-                    1.10f, 14.0f, 0.24f)) {
-                return 6 + state_offset(animal.behind_wall, animal.in_view);
-            }
-        }
-        if (hinted_group == 2) return -1;
-    }
-    if (hinted_group < 0 || hinted_group == 3) {
-        for (const bridge::VehicleSnapshot& vehicle : frame.vehicles) {
-            if (matches(
-                    vehicle.screen_x, vehicle.screen_top_y, vehicle.screen_y,
-                    2.25f, 20.0f, 0.25f)) {
-                return 9 + state_offset(vehicle.behind_wall, vehicle.in_view);
-            }
-        }
-    }
-    return -1;
+    if(env->ExceptionCheck())env->ExceptionClear();
+    if(owner_array)env->DeleteLocalRef(owner_array);if(group_array)env->DeleteLocalRef(group_array);if(marker_array)env->DeleteLocalRef(marker_array);
 }
 
 void APIENTRY HookedUniformMatrix4fv(GLint location, GLsizei count,
@@ -755,7 +773,10 @@ void CaptureDrawElements(GLenum mode, GLsizei count, GLenum element_type,
         g_get_uniform_fv(command.program, state.final_scale, &command.final_scale_value);
     }
     g_get_uniform_fv(command.program, state.color, command.color_value.data());
+    command.owner_identity=CurrentCapturedOwner();
+    if(command.owner_identity==0)return;
     const int target_color_index = CaptureTargetColorIndex(command.color_value);
+    if(target_color_index<0)return;
     command.target_color_index = target_color_index;
     if (target_color_index >= 0) {
         const ImVec4& fill_color = g_capture_fill_colors[target_color_index];
@@ -912,6 +933,30 @@ bool UpdateSolidTextureArray(const ImVec4& color) {
     return g_solid_texture_array != 0;
 }
 
+void ReplayCapturedModel(const DrawCommand& command,const ImVec4& colour,
+                         ZombieModelEffect effect,const NativeModelMaterial::Program* material) {
+    glViewport(command.viewport[0],command.viewport[1],command.viewport[2],command.viewport[3]);
+    g_use_program(material?material->id:command.program);
+    BindCapturedVertexInput(command);
+    g_active_texture(kTexture0+command.texture_unit); glBindTexture(GL_TEXTURE_2D,command.texture);
+    const GLint projection=material?material->projection:command.model_view_projection;
+    const GLint palette=material?material->palette:command.matrix_palette;
+    const GLint transform=material?material->transform:command.transform;
+    const GLint scale=material?material->scale:command.final_scale;
+    const GLint color=material?material->colour:command.color;
+    g_uniform_matrix4fv(projection,1,command.model_view_projection_transpose,command.model_view_projection_value.data());
+    if(palette>=0 && command.matrix_palette_count>0)
+        g_uniform_matrix4fv(palette,command.matrix_palette_count,command.matrix_palette_transpose,command.matrix_palette_value.data());
+    if(transform>=0)g_uniform_matrix4fv(transform,1,command.transform_transpose,command.transform_value.data());
+    if(scale>=0)g_uniform_1f(scale,command.final_scale_value);
+    g_uniform_4f(color,colour.x,colour.y,colour.z,colour.w);
+    if(material) {
+        g_uniform_1i(material->texture,command.texture_unit);
+        g_uniform_1i(material->mode,effect==ZombieModelEffect::WhiteHot?2:1);
+    }
+    g_draw_elements(command.mode,command.count,command.type,command.indices);
+}
+
 ImVec4 EffectColor(const ImVec4& base, ZombieModelEffect effect, std::size_t index) {
     ImVec4 color = base;
     if (effect == ZombieModelEffect::Shaded) color.w *= 0.62f;
@@ -982,6 +1027,7 @@ bool NativeModelChams::Initialize() {
     g_get_uniform_iv = reinterpret_cast<GetUniformivFn>(
         ResolveOpenGlFunction("glGetUniformiv"));
     g_uniform_1f = reinterpret_cast<Uniform1fFn>(ResolveOpenGlFunction("glUniform1f"));
+    g_uniform_1i = reinterpret_cast<Uniform1iFn>(ResolveOpenGlFunction("glUniform1i"));
     g_uniform_3f = reinterpret_cast<Uniform3fFn>(ResolveOpenGlFunction("glUniform3f"));
     g_uniform_4f = reinterpret_cast<Uniform4fFn>(ResolveOpenGlFunction("glUniform4f"));
     g_bind_vertex_array = reinterpret_cast<BindVertexArrayFn>(
@@ -1017,7 +1063,7 @@ bool NativeModelChams::Initialize() {
         g_use_program == nullptr ||
         g_get_uniform_location == nullptr || g_get_uniform_fv == nullptr ||
         g_get_uniform_iv == nullptr ||
-        g_uniform_1f == nullptr || g_uniform_3f == nullptr ||
+        g_uniform_1f == nullptr || g_uniform_1i == nullptr || g_uniform_3f == nullptr ||
         g_uniform_4f == nullptr ||
         g_bind_vertex_array == nullptr || g_gen_vertex_arrays == nullptr ||
         g_bind_buffer == nullptr || g_get_vertex_attrib_iv == nullptr ||
@@ -1207,6 +1253,9 @@ void NativeModelChams::SetCaptureEnabled(
     const bool capture_enabled = enabled && g_initialized && !bridge::IsViewpointActive();
     g_capture_enabled.store(capture_enabled, std::memory_order_release);
     if (capture_enabled) ++g_capture_enable_true_calls;
+    if(capture_enabled)QueueOwnedCapture(frame,{{settings.zombie_esp && ModelVisualsEnabled(settings.model_effect,settings.model_edge_glow),
+        player_settings.player_esp && ModelVisualsEnabled(player_settings.model_effect,player_settings.model_edge_glow),
+        animal_settings.animal_esp && ModelVisualsEnabled(animal_settings.model_effect,animal_settings.model_edge_glow),false}});
     g_capture_vehicle_tint_enabled = capture_enabled &&
         vehicle_settings.vehicle_esp &&
         vehicle_settings.model_effect != ZombieModelEffect::Disabled;
@@ -1235,6 +1284,28 @@ void NativeModelChams::Replay(
     } else if (frame.gate_status != bridge::GateStatus::SinglePlayerAllowed) {
         ResetViewpointModelChamsStatus("3D 模型上色仅在单人模式可用");
     }
+
+    // ViewPoint uses its own model batches. It must not wait for a vanilla
+    // outline draw or the vanilla capture context to be armed.
+    if(viewpoint_active) {
+        g_capture_enabled.store(false,std::memory_order_release);
+        if(!viewpoint_esp || frame.gate_status!=bridge::GateStatus::SinglePlayerAllowed)return;
+        std::array<ImVec4,12> markers{},colours{},edges{};
+        std::array<int,12> effects{};
+        const auto append=[&](int group,bool enabled,const auto& options) {
+            if(!enabled || !ModelVisualsEnabled(options.model_effect,options.model_edge_glow))return;
+            for(int state=0;state<3;state++) {
+                const int at=group*3+state;
+                colours[at]=EffectColor(ResolveColor(options.model_colors,static_cast<ZombieVisualState>(state)),options.model_effect,at);
+                effects[at]=static_cast<int>(options.model_effect);
+                if(options.model_edge_glow)edges[at]=options.model_edge_glow_color;
+            }
+        };
+        append(0,settings.zombie_esp,settings); append(1,player_settings.player_esp,player_settings);
+        append(2,animal_settings.animal_esp,animal_settings); append(3,vehicle_settings.vehicle_esp,vehicle_settings);
+        DrawViewpointModelChams(markers,colours,edges,effects,frame);
+        return;
+    }
     const std::uintptr_t capture_context =
         g_capture_context.load(std::memory_order_acquire);
     if (capture_context == 0 || CurrentRenderContext() != capture_context) {
@@ -1245,13 +1316,13 @@ void NativeModelChams::Replay(
     }
     g_capture_enabled.store(false, std::memory_order_release);
     const bool zombie_models = settings.zombie_esp &&
-        settings.model_effect != ZombieModelEffect::Disabled;
+        ModelVisualsEnabled(settings.model_effect, settings.model_edge_glow);
     const bool player_models = player_settings.player_esp &&
-        player_settings.model_effect != ZombieModelEffect::Disabled;
+        ModelVisualsEnabled(player_settings.model_effect, player_settings.model_edge_glow);
     const bool animal_models = animal_settings.animal_esp &&
-        animal_settings.model_effect != ZombieModelEffect::Disabled;
+        ModelVisualsEnabled(animal_settings.model_effect, animal_settings.model_edge_glow);
     const bool vehicle_models = vehicle_settings.vehicle_esp &&
-        vehicle_settings.model_effect != ZombieModelEffect::Disabled;
+        ModelVisualsEnabled(vehicle_settings.model_effect, vehicle_settings.model_edge_glow);
     if (viewpoint_esp &&
         !zombie_models && !player_models && !animal_models && !vehicle_models) {
         ResetViewpointModelChamsStatus("请启用实体透视并选择模型效果");
@@ -1273,27 +1344,8 @@ void NativeModelChams::Replay(
         std::lock_guard<std::mutex> command_lock(g_commands_mutex);
         replay_commands.swap(g_commands);
     }
-    if (viewpoint_active) {
-        if (!viewpoint_esp) return;
-        if (g_capture_target_colors_ready) {
-            std::array<ImVec4, 12> colors{};
-            for (std::size_t index = 0; index < colors.size(); ++index) {
-                const int group = static_cast<int>(index) / 3;
-                const bool enabled = group == 0 ? zombie_models : group == 1 ? player_models
-                    : group == 2 ? animal_models : vehicle_models;
-                if (!enabled) continue;
-                const ZombieModelEffect effect = group == 0 ? settings.model_effect
-                    : group == 1 ? player_settings.model_effect : group == 2 ? animal_settings.model_effect
-                    : vehicle_settings.model_effect;
-                colors[index] = EffectColor(g_capture_fill_colors[index], effect, index);
-            }
-            DrawViewpointModelChams(g_capture_target_colors, colors);
-        } else {
-            ResetViewpointModelChamsStatus("等待带有上色标记的 3D 模型");
-        }
-        return;
-    }
     if (replay_commands.empty()) return;
+    const auto owner_map=BuildModelOwnerMap(frame);
 
     GLint saved_program = 0;
     GLint saved_vertex_array = 0;
@@ -1310,6 +1362,7 @@ void NativeModelChams::Replay(
     const GLboolean depth_enabled = glIsEnabled(GL_DEPTH_TEST);
     const GLboolean scissor_enabled = glIsEnabled(GL_SCISSOR_TEST);
     const GLboolean cull_enabled = glIsEnabled(GL_CULL_FACE);
+    const GLboolean alpha_enabled=glIsEnabled(GL_ALPHA_TEST),stencil_enabled=glIsEnabled(GL_STENCIL_TEST),logic_enabled=glIsEnabled(GL_COLOR_LOGIC_OP);
     glGetIntegerv(kCurrentProgram, &saved_program);
     glGetIntegerv(kVertexArrayBinding, &saved_vertex_array);
     glGetIntegerv(kArrayBufferBinding, &saved_array_buffer);
@@ -1348,6 +1401,7 @@ void NativeModelChams::Replay(
     g_active_texture(static_cast<GLenum>(saved_active_texture));
 
     g_replaying = true;
+    glDisable(GL_ALPHA_TEST);glDisable(GL_STENCIL_TEST);glDisable(GL_COLOR_LOGIC_OP);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
@@ -1355,95 +1409,55 @@ void NativeModelChams::Replay(
     glDisable(GL_CULL_FACE);
     glDisable(GL_SCISSOR_TEST);
 
-    for (std::size_t command_index = 0;
-        command_index < replay_commands.size();
-         ++command_index) {
-        const DrawCommand& command = replay_commands[command_index];
-        const int target_color_index =
-            ResolveTrackedEntityColorIndex(command, frame);
-        if (target_color_index < 0) continue;
-        const int entity_group = target_color_index / 3;
-        const bool group_enabled = entity_group == 0 ? zombie_models
-            : entity_group == 1 ? player_models
-            : entity_group == 2 ? animal_models : vehicle_models;
-        if (!group_enabled) continue;
-        const ZombieModelEffect effect = entity_group == 0 ? settings.model_effect
-            : entity_group == 1 ? player_settings.model_effect
-            : entity_group == 2 ? animal_settings.model_effect
-                                : vehicle_settings.model_effect;
-        const ImVec4 captured_color = g_capture_fill_colors[target_color_index];
-        const ImVec4 color = EffectColor(
-            captured_color, effect,
-            command_index);
 
-        glViewport(command.viewport[0], command.viewport[1],
-                   command.viewport[2], command.viewport[3]);
-        g_use_program(command.program);
-        BindCapturedVertexInput(command);
-        g_active_texture(kTexture0 + command.texture_unit);
-        if (command.instanced) {
-            if (!UpdateSolidTextureArray(color)) continue;
-            glBindTexture(kTexture2DArray, g_solid_texture_array);
-            for (GLuint binding = 0; binding < g_ssbo_binding_count; ++binding) {
-                if (command.ssbo_bindings[binding] != 0) {
-                    g_bind_buffer_base(
-                        kShaderStorageBuffer, binding,
-                        command.ssbo_bindings[binding]);
-                }
-            }
-            g_draw_elements_instanced(
-                command.mode, command.count, command.type, command.indices,
-                command.instance_count);
-            continue;
-        }
-
-        glBindTexture(GL_TEXTURE_2D, command.texture);
-        const auto replay_model_pass = [&command](const ImVec4& pass_color,
-                                                   float scale_multiplier) {
-            g_uniform_matrix4fv(
-                command.model_view_projection, 1,
-                command.model_view_projection_transpose,
-                command.model_view_projection_value.data());
-            if (command.matrix_palette >= 0 && command.matrix_palette_count > 0) {
-                g_uniform_matrix4fv(
-                    command.matrix_palette, command.matrix_palette_count,
-                    command.matrix_palette_transpose,
-                    command.matrix_palette_value.data());
-            }
-            if (command.transform >= 0) {
-                g_uniform_matrix4fv(
-                    command.transform, 1, command.transform_transpose,
-                    command.transform_value.data());
-            }
-            if (command.final_scale >= 0) {
-                g_uniform_1f(
-                    command.final_scale,
-                    command.final_scale_value * scale_multiplier);
-            }
-            g_uniform_4f(
-                command.color, pass_color.x, pass_color.y,
-                pass_color.z, pass_color.w);
-            g_draw_elements(
-                command.mode, command.count, command.type, command.indices);
+    const std::array<bool,4> enabled{{zombie_models,player_models,animal_models,vehicle_models}};
+    const std::array<ZombieModelEffect,4> effects{{settings.model_effect,player_settings.model_effect,
+        animal_settings.model_effect,vehicle_settings.model_effect}};
+    const std::array<bool,4> edges{{settings.model_edge_glow,player_settings.model_edge_glow,
+        animal_settings.model_edge_glow,vehicle_settings.model_edge_glow}};
+    const std::array<ImVec4,4> edge_colours{{settings.model_edge_glow_color,player_settings.model_edge_glow_color,
+        animal_settings.model_edge_glow_color,vehicle_settings.model_edge_glow_color}};
+    const ImGuiIO& io=ImGui::GetIO();
+    const int width=static_cast<int>(std::lround(io.DisplaySize.x*io.DisplayFramebufferScale.x));
+    const int height=static_cast<int>(std::lround(io.DisplaySize.y*io.DisplayFramebufferScale.y));
+    GLuint self_mask=0;
+    const bool has_self=std::any_of(replay_commands.begin(),replay_commands.end(),[](const DrawCommand& command){return command.owner_identity==-1;});
+    if(has_self && g_model_self_mask.Begin(width,height)) {
+        for(const auto& command:replay_commands)if(command.owner_identity==-1)
+            ReplayCapturedModel(command,ImVec4(1,1,1,1),ZombieModelEffect::Solid,nullptr);
+        g_model_self_mask.End();self_mask=g_model_self_mask.Texture();
+    }
+    for(int target=0;target<12;target++) {
+        const int group=target/3;
+        if(!enabled[group] || effects[group]==ZombieModelEffect::Disabled)continue;
+        const auto selected=[&](const DrawCommand& command) {
+            return ResolveTrackedEntityColorIndex(command,owner_map)==target &&
+                ModelLayerVisible(ResolveModelOwner(command.owner_identity,owner_map),VisualFeature::Fill);
         };
-
-        const bool edge_glow = entity_group == 0 ? settings.model_edge_glow
-            : entity_group == 1 ? player_settings.model_edge_glow
-            : entity_group == 2 ? animal_settings.model_edge_glow
-                                : vehicle_settings.model_edge_glow;
-        const ImVec4 edge_color = entity_group == 0 ? settings.model_edge_glow_color
-            : entity_group == 1 ? player_settings.model_edge_glow_color
-            : entity_group == 2 ? animal_settings.model_edge_glow_color
-                                : vehicle_settings.model_edge_glow_color;
-        if (edge_glow && command.final_scale >= 0) {
-            ImVec4 outer = edge_color;
-            outer.w *= 0.24f;
-            replay_model_pass(outer, 1.028f);
-            ImVec4 inner = edge_color;
-            inner.w *= 0.72f;
-            replay_model_pass(inner, 1.013f);
+        if(!std::any_of(replay_commands.begin(),replay_commands.end(),selected) || !g_model_fill.Begin(width,height))continue;
+        for(std::size_t index=0;index<replay_commands.size();index++) {
+            const auto& command=replay_commands[index];if(!selected(command))continue;
+            const auto effect=effects[group];
+            const NativeModelMaterial::Program* material=nullptr;
+            if(target<6 && IsThermalMaterial(effect)) {
+                material=g_character_materials.Get(command.program);if(!material)continue;
+            }
+            ReplayCapturedModel(command,EffectColor(g_capture_fill_colors[target],effect,index),effect,material);
         }
-        replay_model_pass(color, 1.0f);
+        g_model_fill.End();g_model_fill.Composite(ImVec4(0,0,0,0),true,self_mask);
+    }
+    for(int target=0;target<12;target++) {
+        const int group=target/3;
+        if(!enabled[group] || !edges[group] || edge_colours[group].w<=0)continue;
+        bool present=false;
+        for(const DrawCommand& command:replay_commands)if(ResolveTrackedEntityColorIndex(command,owner_map)==target && ModelLayerVisible(ResolveModelOwner(command.owner_identity,owner_map),VisualFeature::Rim)) { present=true;break; }
+        if(!present || !g_model_outline.Begin(width,height))continue;
+        for(const DrawCommand& command:replay_commands) {
+            if(ResolveTrackedEntityColorIndex(command,owner_map)==target && ModelLayerVisible(ResolveModelOwner(command.owner_identity,owner_map),VisualFeature::Rim))
+                ReplayCapturedModel(command,ImVec4(1,1,1,1),ZombieModelEffect::Solid,nullptr);
+        }
+        g_model_outline.End();
+        g_model_outline.Composite(edge_colours[group],false,self_mask);
     }
 
     for (GLuint binding = 0; binding < g_ssbo_binding_count; ++binding) {
@@ -1470,6 +1484,9 @@ void NativeModelChams::Replay(
     if (depth_enabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     if (scissor_enabled) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
     if (cull_enabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+    if(alpha_enabled)glEnable(GL_ALPHA_TEST);else glDisable(GL_ALPHA_TEST);
+    if(stencil_enabled)glEnable(GL_STENCIL_TEST);else glDisable(GL_STENCIL_TEST);
+    if(logic_enabled)glEnable(GL_COLOR_LOGIC_OP);else glDisable(GL_COLOR_LOGIC_OP);
     g_replaying = false;
 }
 
@@ -1500,6 +1517,11 @@ NativeModelChamsDiagnostics NativeModelChams::Diagnostics() {
     diagnostics.instanced_programs = g_instanced_program_count;
     diagnostics.vehicle_programs = g_vehicle_program_count;
     diagnostics.vehicle_tinted_draw_calls = g_vehicle_tinted_draw_calls;
+    diagnostics.material_error = g_character_materials.error;
+    if(!g_owned_capture_error.empty())diagnostics.material_error += " Capture: "+g_owned_capture_error;
+    if(!g_model_outline.error.empty())diagnostics.material_error += " Edge: " + g_model_outline.error;
+    if(!g_model_fill.error.empty())diagnostics.material_error += " Fill: "+g_model_fill.error;
+    if(!g_model_self_mask.error.empty())diagnostics.material_error += " Self mask: "+g_model_self_mask.error;
     return diagnostics;
 }
 
