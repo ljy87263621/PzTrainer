@@ -49,7 +49,10 @@ int main() {
     assert(calls==3 && last_effects[0]==8 && last_edges[0].w>0);
     assert(last_effects[3]==0 && last_edges[3].w==0);
     bridge::GetViewpointSettings().esp_3d=false;
-    NativeModelChams::Replay(frame,zombies,players,animals,vehicles); assert(calls==3);
+    bridge::GetViewpointSettings().compatibility_mode=false;
+    NativeModelChams::Replay(frame,zombies,players,animals,vehicles); assert(calls==4);
+    frame.gate_status=bridge::GateStatus::WaitingForWorld;
+    NativeModelChams::Replay(frame,zombies,players,animals,vehicles); assert(calls==4);
     ImGui::DestroyContext();
     std::cout<<"Production C++ replay: 3D fill, rim and combined modes reach the helper without vanilla capture or GL context; disabled groups/gate preserved\n";
 }

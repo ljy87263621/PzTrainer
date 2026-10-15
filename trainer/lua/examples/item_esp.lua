@@ -12,8 +12,6 @@ icon:line(-4.5, 0.0, 0.0, 0.0, 1.2)
 
 local category = PZSA.ui.category("物品 ESP", icon)
 category:toggle("启用物品 ESP", false)
-category:toggle("自动切换 3D Item ESP", true)
-category:toggle("手动启用 3D Item ESP（关闭自动后生效）", false)
 category:toggle("显示名称", true)
 category:toggle("显示图标", true)
 category:toggle("名称仅实际可见", false)
@@ -198,9 +196,6 @@ local function use3DProjection(screenWidth, screenHeight)
     if world ~= nil and world.viewpoint_status ~= nil then
         -- Refresh once at UI draw time, before projecting any cached items.
         status = world.viewpoint_status(screenWidth, screenHeight)
-    end
-    if not category:toggle("自动切换 3D Item ESP", true) then
-        return category:toggle("手动启用 3D Item ESP（关闭自动后生效）", false), true
     end
     if status ~= nil then return status.active == true, status.ready == true end
     -- API 3 DLLs expose detection through to_screen only.

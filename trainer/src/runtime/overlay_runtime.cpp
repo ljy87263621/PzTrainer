@@ -517,9 +517,9 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
         const bool viewpoint_camera_ready =
             viewpoint_active && bridge::CanUseViewpoint3D(
                 viewpoint_settings, viewpoint_status);
+        // Default snapshot blocks aim while an active 3D camera is not ready.
         bridge::FrameSnapshot viewpoint_frame;
-        if (viewpoint_camera_ready && (viewpoint_settings.esp_3d ||
-            viewpoint_settings.legit_3d || viewpoint_settings.rage_3d)) {
+        if (viewpoint_camera_ready) {
             viewpoint_frame = bridge::MakeViewpointFrame(frame);
         }
         const auto& esp_frame = bridge::UseViewpointEsp(
@@ -529,12 +529,12 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
             frame.gate_status == bridge::GateStatus::SinglePlayerAllowed);
         bridge::UpdateFastAimingDelay(frame.gate_status == bridge::GateStatus::SinglePlayerAllowed);
         features::aim::UpdateLegitAim(
-            viewpoint_camera_ready && viewpoint_settings.legit_3d
+            viewpoint_active
                 ? viewpoint_frame : frame,
             g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
             ImGui::GetIO().DisplaySize.y, ImGui::GetIO().DeltaTime);
         features::aim::UpdateRageAim(
-            viewpoint_camera_ready && viewpoint_settings.rage_3d
+            viewpoint_active
                 ? viewpoint_frame : frame,
             g_menu_visible.load(), ImGui::GetIO().DisplaySize.x,
             ImGui::GetIO().DisplaySize.y);

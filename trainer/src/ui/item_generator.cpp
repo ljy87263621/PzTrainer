@@ -1,5 +1,4 @@
 #include "ui/item_generator.hpp"
-#include "ui/recorded_media_filter.hpp"
 #include "bridge/item_catalog_search.hpp"
 #include "ui/item_generator_text.hpp"
 
@@ -37,7 +36,6 @@ using bridge::ItemSpawnDestination;
 using bridge::ItemSpawnMethod;
 using namespace components;
 
-bool g_recorded_media_page=false;
 constexpr float kCardHeight = 136.0f;
 constexpr float kCardGap = 10.0f;
 constexpr float kMethodPopupHeight = 300.0f;
@@ -196,7 +194,6 @@ bool ItemSupports(const ItemCatalogEntry& item, ItemSpawnMethod method) {
 }
 
 bool MatchesMethodFilter(const ItemCatalogEntry& item) {
-    if(g_recorded_media_page && !RecordedMediaMatches(item,"全部",""))return false;
     for (const MethodInfo& method : kMethods) {
         if (MethodEnabled(method.value) && ItemSupports(item, method.value)) {
             return true;
@@ -226,7 +223,6 @@ bool MatchesSearch(const ItemCatalogEntry& item) {
 
 std::vector<std::string> BuildCategories(
     const std::vector<ItemCatalogEntry>& catalog) {
-    if(g_recorded_media_page)return {"全部","零售 VHS","家庭 VHS","CD"};
     std::vector<std::string> categories{"全部"};
     for (const ItemCatalogEntry& item : catalog) {
         if (!MatchesMethodFilter(item)) continue;
@@ -570,8 +566,7 @@ void DrawSpawnControls(const std::vector<ItemCatalogEntry>& catalog,
         ImGui::SetCursorScreenPos(ImVec2(action_left, action_row_y + U(42.0f)));
     }
     ImGui::BeginDisabled(
-        (corpse_scheme ? !HasCorpsePayloadSelection() : g_selected_type.empty()) || cooldown > 0 ||
-        (g_recorded_media_page && bridge::GetItemSessionMode()!=bridge::ItemSessionMode::Local));
+        (corpse_scheme ? !HasCorpsePayloadSelection() : g_selected_type.empty()) || cooldown > 0);
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.78f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kAccent);
     if (ImGui::Button(execute_label, ImVec2(execute_width, U(34.0f))))
@@ -593,16 +588,9 @@ void DrawRefreshButton(float width) {
 
 }  // namespace
 
-void DrawItemGeneratorPage(const bridge::FrameSnapshot& frame,bool media_page) {
-    if(g_recorded_media_page!=media_page) {
-        g_recorded_media_page=media_page;g_selected_type.clear();g_category="全部";g_search[0]=0;
-        ClearCorpsePayloadSelection();
-        if(media_page) {SelectSpawnScheme(SpawnScheme::Game);bridge::ForceRefreshItemCatalog();}
-        else g_default_session_mode=DefaultSessionMode::Unknown;
-    }
+void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     (void)frame;
     ApplySessionDefault();
-    if(media_page)g_spawn_scheme=SpawnScheme::Game;
     UpdateActiveStatus();
     if (!bridge::RefreshItemCatalog()) {
         DrawRefreshButton();
@@ -624,7 +612,7 @@ void DrawItemGeneratorPage(const bridge::FrameSnapshot& frame,bool media_page) {
         g_category = "全部";
     }
 
-    SectionLabel(media_page?"VHS/CD 生成":"物品筛选与生成");
+    SectionLabel("物品筛选与生成");
     ImGui::Dummy(ImVec2(0.0f, U(3.0f)));
     BeginCard("ItemGeneratorControls", nullptr, ImVec2(0.0f, 0.0f));
     const float control_width = ImGui::GetContentRegionAvail().x;
@@ -648,7 +636,7 @@ void DrawItemGeneratorPage(const bridge::FrameSnapshot& frame,bool media_page) {
             control_width - category_width - method_width - field_gap * 2.0f);
     ImGui::SetNextItemWidth(search_width);
     ImGui::InputTextWithHint(
-        "##ItemSearch", settings::Translate(media_page?"搜索节目名称、标题或作者":"搜索物品名称或完整类型"),
+        "##ItemSearch", settings::Translate("搜索物品名称或完整类型"),
         g_search, sizeof(g_search));
     if (wrap_filters) {
         ImGui::Dummy(ImVec2(0.0f, U(6.0f)));
@@ -677,8 +665,7 @@ void DrawItemGeneratorPage(const bridge::FrameSnapshot& frame,bool media_page) {
         ImGui::SameLine(0.0f, field_gap);
     }
     ImGui::SetNextItemWidth(std::min(method_width, control_width));
-    if(media_page)ImGui::TextUnformatted(T("游戏原生 · 指定节目"));
-    else DrawMethodSelector();
+    DrawMethodSelector();
 
     // The method list is a floating window. Reserve its full downward extent
     // in the card while it is open so the execute button and item cards stay
@@ -737,10 +724,6 @@ void DrawItemGeneratorPage(const bridge::FrameSnapshot& frame,bool media_page) {
                     selected_item->full_type.c_str());
         ImGui::PopStyleColor();
     }
-    if(media_page) {
-        ImGui::TextWrapped("%s",T("按节目名选择具体 VHS/CD，支持数量、背包和地面生成；此页不使用随机基础物品。"));
-        ImGui::TextWrapped("%s",bridge::GetItemCatalogStatus().c_str());
-    }
     if (!g_status.empty()) {
         ImGui::Dummy(ImVec2(0.0f, U(2.0f)));
         ImGui::PushStyleColor(ImGuiCol_Text, kMuted);
@@ -753,7 +736,7 @@ void DrawItemGeneratorPage(const bridge::FrameSnapshot& frame,bool media_page) {
     filtered.reserve(catalog.size());
     for (const ItemCatalogEntry& item : catalog) {
         if (MatchesMethodFilter(item) &&
-            (media_page ? RecordedMediaMatches(item,g_category,g_search) : (g_category == "全部" || item.category == g_category)) &&
+            (g_category == "全部" || item.category == g_category) &&
             MatchesSearch(item)) {
             filtered.push_back(&item);
         }
@@ -819,9 +802,6 @@ void DrawItemGeneratorPage(const bridge::FrameSnapshot& frame,bool media_page) {
     }
     ImGui::EndChild();
 }
-
-void DrawItemGenerator(const bridge::FrameSnapshot& frame) {DrawItemGeneratorPage(frame,false);}
-void DrawRecordedMediaGenerator(const bridge::FrameSnapshot& frame) {DrawItemGeneratorPage(frame,true);}
 
 bool IsCorpsePayloadSchemeActive() {
     return CorpseSchemeSelected();

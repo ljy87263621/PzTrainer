@@ -1,3 +1,11 @@
+# v1.0.0-beta.8
+
+- 修复俯视角显式模型捕获未初始化每玩家光照数据而抛出 `modelSlot.model.playerData is null` 的问题；使用引擎 updateLights → initModel → init 流程。
+- ESP、模型效果、Lua 物资 ESP 与瞄准投影按 ViewPoint 当前渲染状态自动匹配；移除手动兼容／3D 按钮，旧配置开关不再覆盖自动选择，相机未就绪时暂停对应操作。
+- 移除独立 VHS/CD 生成页面；普通 Spawner 保留全部具名节目搜索、指定内容生成与数量／目标位置选项。
+- 保留已由用户确认正常的第一人称帧回调和静默自瞄；保留自动急停已知问题悬浮提示。
+- 增加实际游戏类的空 playerData 构造回归、反复视角切换和旧配置标记回归；详见 docs/AUTO_PROJECTION_NATIVE_CAPTURE.md。当前版本俯视角画面及连续切换仍需游戏内复测。
+
 # v1.0.0-beta.7
 
 - 修复模型捕获遗漏 initModel 导致 character 为 null 的异常，按游戏协议维护模型槽渲染引用，并核对对象与槽的真实归属。

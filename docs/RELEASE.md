@@ -2,6 +2,12 @@
 
 Current Release x64 builds use the static MSVC runtime (`/MT`) in both Trainer and Launcher. They do not need separate `msvcp140.dll` or `vcruntime140*.dll` files. Rebuilding Trainer changes the protection input: process the newly built marker-enabled DLL in VMProtect again before embedding it in a protected Launcher. A marker-enabled DLL that has not been processed still imports `VMProtectSDK64.dll` and must not be distributed as a protected release.
 
+## v1.0.0-beta.8
+
+Repairs native per-player model lighting initialization and automatically routes ESP, model effects, Lua item ESP and aim projection according to the active ViewPoint renderer. Removes the manual projection switches and the separate VHS/CD page; named media remain in the ordinary Spawner. See [automatic projection and native capture](AUTO_PROJECTION_NATIVE_CAPTURE.md) for the reproduced exception, test scope and remaining live-game validation.
+
+The marker-disabled Portable build uses static CRT and embeds the matching trainer DLL and helper JAR. No separate JDK, VC runtime, or VMProtect SDK is required by the recipient. The game and optional ViewPoint mod remain external prerequisites.
+
 ## v1.0.0-beta.7
 
 Updates native ModelSlotRenderData initialization/reference ownership, hooks model effects before ViewPoint frame retirement, and adds explicit named VHS/CD selection in its own page. Automatic stop receives a known-issue tooltip; its implementation and the confirmed silent-aim fix remain unchanged. Use the ordinary marker-disabled Portable build with the static CRT. See [capture and media UI](MODEL_CAPTURE_MEDIA_UI.md) for validation and live-game limits.

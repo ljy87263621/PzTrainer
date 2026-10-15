@@ -1,5 +1,13 @@
 import pztrainer.player.visual.NativeModelCapture;
 public class NativeModelCaptureTest {
+    // Headless character: only the animation lookup is replaced; render-data
+    // construction, lighting allocation and reference release are real game code.
+    public static class CaptureZombie extends zombie.characters.IsoGameCharacter {
+        zombie.core.skinnedmodel.animation.AnimationPlayer animation;
+        public CaptureZombie() {super(null,0,0,0);}
+        @Override public zombie.core.skinnedmodel.animation.AnimationPlayer getAnimationPlayer() {return animation;}
+        @Override public float getAlpha(int index) {return 1f;}
+    }
     public static void main(String[] args) throws Exception {
         if(NativeModelCapture.currentIdentity()!=0)throw new AssertionError("Unowned draw has an identity");
         NativeModelCapture.capture(42,()-> {
@@ -44,6 +52,28 @@ public class NativeModelCaptureTest {
             if(!(expected.getCause() instanceof RuntimeException))throw expected;
         }
         if(slot.renderRefCount!=0)throw new AssertionError("Failed initialization leaked or underflowed the slot reference");
+        var actor=(CaptureZombie)allocate.invoke(unsafe,CaptureZombie.class);
+        actor.animation=(zombie.core.skinnedmodel.animation.AnimationPlayer)allocate.invoke(unsafe,zombie.core.skinnedmodel.animation.AnimationPlayer.class);
+        var asset=(zombie.core.skinnedmodel.model.Model)allocate.invoke(unsafe,zombie.core.skinnedmodel.model.Model.class);
+        asset.effect=(zombie.core.skinnedmodel.shader.Shader)allocate.invoke(unsafe,zombie.core.skinnedmodel.shader.Shader.class);
+        var privateType=Class.forName("zombie.asset.Asset$PRIVATE");
+        var constructor=privateType.getDeclaredConstructor(zombie.asset.Asset.class);constructor.setAccessible(true);
+        var assetState=zombie.asset.Asset.class.getDeclaredField("priv");assetState.setAccessible(true);
+        assetState.set(asset,constructor.newInstance(asset)); // Unloaded mesh: no GL needed for frame construction.
+        model=new zombie.core.skinnedmodel.model.ModelInstance();model.object=actor;model.character=actor;model.model=asset;
+        slot=new zombie.core.skinnedmodel.ModelManager.ModelSlot(0,model,actor);slot.active=true;
+        if(model.playerData!=null)throw new AssertionError("Fixture must start with unseen/uninitialized model data");
+        for(int index:new int[]{0,1,0}) {
+            var frameState=Class.forName("zombie.iso.IsoCamera").getField("frameState").get(null);
+            frameState.getClass().getField("playerIndex").setInt(frameState,index);
+            var prepared=(zombie.core.skinnedmodel.model.ModelSlotRenderData)prepare.invoke(null,slot);
+            if(model.playerData==null || model.playerData[index]==null)
+                throw new AssertionError("Explicit capture did not initialize engine per-player lighting");
+            if(prepared.character!=actor || prepared.animPlayer!=actor.animation || prepared.alpha!=1f || slot.renderRefCount!=1)
+                throw new AssertionError("Incomplete native capture frame");
+            prepared.postRender();
+            if(slot.renderRefCount!=0)throw new AssertionError("Successful capture leaked a model slot reference");
+        }
         System.out.println("Native capture: explicit ownership, nesting and exception cleanup passed");
     }
 }

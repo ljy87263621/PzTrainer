@@ -145,7 +145,7 @@ void ProjectCharacter(Snapshot& target, float height) {
 void RefreshViewpointCamera(JNIEnv* env, float viewport_width, float viewport_height) {
     g_active = false;
     g_camera.valid = false;
-    g_status.compatibility_mode = g_settings.compatibility_mode;
+    g_status.compatibility_mode = true;
     g_status.mod_enabled = false;
     g_status.camera_valid = false;
     if (env == nullptr) {
@@ -165,10 +165,6 @@ void RefreshViewpointCamera(JNIEnv* env, float viewport_width, float viewport_he
     g_active = mod_enabled;
     if (!g_active) {
         g_status.message = "ViewPoint Mod 未启用";
-        return;
-    }
-    if (!g_settings.compatibility_mode) {
-        g_status.message = "ViewPoint Mod 已启用，兼容模式已关闭";
         return;
     }
     if (env->PushLocalFrame(3) != JNI_OK) {
@@ -210,13 +206,11 @@ ViewpointSettings& GetViewpointSettings() { return g_settings; }
 const ViewpointStatus& GetViewpointStatus() { return g_status; }
 
 void SetViewpointCompatibilityMode(bool enabled) {
-    g_settings.compatibility_mode = enabled;
-    g_status.compatibility_mode = enabled;
-    g_status.camera_valid = false;
-    g_camera.valid = false;
-    g_status.message = enabled
-        ? "已启用 ViewPoint 兼容模式，等待渲染状态"
-        : "ViewPoint 兼容模式已关闭";
+    // Compatibility entry point retained for old callers. Manual preferences
+    // cannot disable adaptation to the renderer that the game is using.
+    (void)enabled;
+    g_settings.compatibility_mode = true;
+    g_status.compatibility_mode = true;
 }
 
 bool ProjectViewpointWorldPoint(const WorldPoint& point, ScreenPoint& screen) {

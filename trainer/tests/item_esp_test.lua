@@ -88,11 +88,12 @@ status.active=false; vanillaAnchor()
 controls["自动切换 3D Item ESP"] = false
 controls["手动启用 3D Item ESP（关闭自动后生效）"] = false
 status.active=true; status.ready=true
-vanillaAnchor()
+draw(); check(#rects==1 and near(rects[1].x,450),"legacy manual false cannot override current 3D renderer")
 controls["手动启用 3D Item ESP（关闭自动后生效）"] = true
-status.active=false; status.ready=false -- Manual mode is independent of status auto-selection.
-draw(); check(#rects==1 and near(rects[1].x,450),"manual 3D calls matrix projection")
-projected.ready=false; draw(); check(#rects==0,"manual mode waits for camera")
+status.active=false; status.ready=false
+vanillaAnchor() -- Legacy manual true cannot override vanilla renderer.
+status.active=true;status.ready=true
+projected.ready=false; draw(); check(#rects==0,"automatic mode waits for projection camera")
 projected.ready=true; projected.visible=false; draw(); check(#rects==0,"3D rejects clipped point")
 projected.visible=true
 controls["自动切换 3D Item ESP"] = true

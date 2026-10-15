@@ -5,11 +5,12 @@
 namespace pztrainer::bridge {
 
 struct ViewpointSettings {
+    // Legacy serialized slots. Keep their order/size for existing profiles;
+    // projection is now chosen from the active renderer, not these flags.
     bool esp_3d = false;
     bool legit_3d = false;
     bool rage_3d = false;
-    // ViewPoint changes the game's projection from 2.5D to 3D. Keep the
-    // compatibility bridge enabled by default when the mod is detected.
+    // Former opt-in flag; adaptation is unconditional for an active renderer.
     bool compatibility_mode = true;
 };
 
@@ -24,7 +25,8 @@ struct ViewpointStatus {
 
 inline bool ViewpointBridgeReady(const ViewpointSettings& settings,
                                  const ViewpointStatus& status) {
-    return settings.compatibility_mode && status.detected && status.ready &&
+    (void)settings;
+    return status.detected && status.ready &&
         status.mod_enabled;
 }
 
@@ -35,14 +37,13 @@ inline bool CanUseViewpoint3D(const ViewpointSettings& settings,
 
 inline bool UseViewpointEsp(const ViewpointSettings& settings,
                             const ViewpointStatus& status) {
-    return settings.esp_3d && CanUseViewpoint3D(settings, status);
+    return CanUseViewpoint3D(settings, status);
 }
 
 inline bool ShouldDrawEsp(const ViewpointSettings& settings,
                           const ViewpointStatus& status) {
-    // A requested 3D overlay must wait for its camera, rather than showing
-    // vanilla coordinates on top of an active ViewPoint scene.
-    return !settings.esp_3d || !status.mod_enabled ||
+    // An active 3D renderer must wait for its camera.
+    return !status.mod_enabled ||
         CanUseViewpoint3D(settings, status);
 }
 

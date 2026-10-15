@@ -37,6 +37,10 @@ public final class NativeModelCapture {
             slot.character==character && slot.model.object==character;
     }
     private static ModelSlotRenderData prepare(ModelManager.ModelSlot slot) {
+        // Explicit submissions include models skipped by vanilla visibility
+        // culling. Let the engine allocate/update the current player's lighting
+        // before init reads model.playerData[playerIndex], as ViewPoint does.
+        slot.model.updateLights();
         ModelSlotRenderData data=ModelSlotRenderData.alloc();
         data.modelSlot=slot;
         slot.renderRefCount++;

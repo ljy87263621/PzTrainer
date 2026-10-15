@@ -18,16 +18,16 @@ This repository is organized as one build unit:
 From the repository root, run:
 
 ```powershell
-.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.7'
+.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.8'
 ```
 
 The script builds the trainer first, builds the launcher with that DLL embedded as a resource, writes SHA-256 sums, and produces a portable ZIP under `artifacts\`.
 
-The beta.7 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
+The beta.8 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
 
-The trainer includes optional Viewpoint 3D compatibility. When a compatible Viewpoint mod is installed in the target Project Zomboid build, the visual page exposes 3D ESP for zombies, players, animals, and vehicles, and the aim pages expose separate 3D Legit/Rage switches. The portable package embeds the bridge and Java helper but does not redistribute the third-party Viewpoint mod.
+The trainer automatically follows the active game renderer. Vanilla top-down view uses the isometric ESP/model-capture path; an enabled compatible ViewPoint renderer uses its current 3D camera for ESP and aiming. Manual projection/compatibility switches have been removed, and old saved flags no longer override camera selection. During 3D camera startup the overlay waits for a valid camera. The portable package embeds the bridge and Java helper but does not redistribute the third-party ViewPoint mod.
 
-Beta.7 adds a dedicated VHS/CD selection page and repairs native model capture and ViewPoint frame timing; see [capture and media UI](docs/MODEL_CAPTURE_MEDIA_UI.md). The current build also includes playable named VHS/CD generation, silent-only Rage target collection, furniture catalog entries, model fill and rim controls, per-feature game visibility filters, and default configuration loading. See [media and silent aim](docs/RECORDED_MEDIA_SILENT_AIM.md), [visibility and default configs](docs/VISIBILITY_DEFAULT_CONFIG.md), and [model effects](docs/MODEL_COLOUR_FIXES.md) for behavior and validation limits.
+Beta.8 fixes native capture of models whose per-player lighting data has not yet been initialized, and removes the separate VHS/CD page. Select specific VHS/CD programs through the ordinary item generator. See [automatic projection and native capture](docs/AUTO_PROJECTION_NATIVE_CAPTURE.md). The build also includes the confirmed silent-aim fix, furniture catalog entries, independent fill/rim controls, per-feature game visibility filters, and default configuration loading. See [media and silent aim](docs/RECORDED_MEDIA_SILENT_AIM.md), [visibility and default configs](docs/VISIBILITY_DEFAULT_CONFIG.md), and [model effects](docs/MODEL_COLOUR_FIXES.md).
 
 ## Local SDK
 

@@ -15,10 +15,6 @@ Push-Location $repoRoot
 try {
     & 'D:\Develope\Tools\CodexToolchain\codex-msvc.cmd' cl /nologo /std:c++17 /EHsc /utf-8 /Itrainer\src /Itrainer\third_party\imgui /Itrainer\third_party\openjdk\include trainer\tests\recorded_media_catalog_jvm_test.cpp trainer\src\bridge\recorded_media_catalog.cpp "/Fo$output\" "/Fe$output\recorded_media_catalog_jvm_test.exe"
     if ($LASTEXITCODE -ne 0) { throw 'Native recorded media catalog compilation failed.' }
-    & 'D:\Develope\Tools\CodexToolchain\codex-msvc.cmd' cl /nologo /std:c++17 /EHsc /utf-8 /Itrainer\src trainer\tests\recorded_media_filter_test.cpp "/Fo$output\recorded_media_filter_test.obj" "/Fe$output\recorded_media_filter_test.exe"
-    if ($LASTEXITCODE -ne 0) { throw 'Recorded media filter compilation failed.' }
-    & "$output\recorded_media_filter_test.exe"
-    if ($LASTEXITCODE -ne 0) { throw 'Recorded media filter failed.' }
     & "$output\recorded_media_catalog_jvm_test.exe" $GameRoot $output "$output\media-helper.jar"
     if ($LASTEXITCODE -ne 0) { throw 'Native recorded media catalog failed.' }
 } finally { Pop-Location }

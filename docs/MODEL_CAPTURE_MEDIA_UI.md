@@ -1,3 +1,5 @@
+> 本文记录 beta.7。beta.8 已移除独立 VHS/CD 页面并改为自动视角匹配，当前行为见 [新版说明](AUTO_PROJECTION_NATIVE_CAPTURE.md)。
+
 # beta.7 模型捕获与 VHS/CD 独立页面
 
 ## 原版模型捕获
