@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')]
-    [string]$Version = '1.0.0-beta.6',
+    [string]$Version = '1.0.0-beta.7',
     [ValidateSet('Release')]
     [string]$Configuration = 'Release',
     [ValidateSet('x64')]
@@ -61,7 +61,7 @@ try {
 
     $docs = Join-Path $artifactRoot 'docs'
     New-Item -ItemType Directory -Path $docs | Out-Null
-    foreach ($name in @('RECORDED_MEDIA_SILENT_AIM.md','VISIBILITY_DEFAULT_CONFIG.md','MODEL_COLOUR_FIXES.md','MOVEABLE_ITEMS.md','ITEM_ESP.md','CHARACTER_MATERIALS.md')) {
+    foreach ($name in @('MODEL_CAPTURE_MEDIA_UI.md','RECORDED_MEDIA_SILENT_AIM.md','VISIBILITY_DEFAULT_CONFIG.md','MODEL_COLOUR_FIXES.md','MOVEABLE_ITEMS.md','ITEM_ESP.md','CHARACTER_MATERIALS.md')) {
         Copy-Item -LiteralPath (Join-Path $repoRoot "docs\$name") -Destination $docs
     }
 

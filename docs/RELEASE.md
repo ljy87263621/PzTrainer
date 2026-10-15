@@ -2,6 +2,10 @@
 
 Current Release x64 builds use the static MSVC runtime (`/MT`) in both Trainer and Launcher. They do not need separate `msvcp140.dll` or `vcruntime140*.dll` files. Rebuilding Trainer changes the protection input: process the newly built marker-enabled DLL in VMProtect again before embedding it in a protected Launcher. A marker-enabled DLL that has not been processed still imports `VMProtectSDK64.dll` and must not be distributed as a protected release.
 
+## v1.0.0-beta.7
+
+Updates native ModelSlotRenderData initialization/reference ownership, hooks model effects before ViewPoint frame retirement, and adds explicit named VHS/CD selection in its own page. Automatic stop receives a known-issue tooltip; its implementation and the confirmed silent-aim fix remain unchanged. Use the ordinary marker-disabled Portable build with the static CRT. See [capture and media UI](MODEL_CAPTURE_MEDIA_UI.md) for validation and live-game limits.
+
 ## v1.0.0-beta.6
 
 Ordinary marker-disabled x64 Portable prerelease, using static CRT in both executables. The launcher embeds the newly built trainer DLL, including the updated recorded-media Java helper; no external developer runtime is required. The package includes Lua examples, feature notes and SHA256SUMS. Project Zomboid itself and the optional ViewPoint mod are not redistributed.

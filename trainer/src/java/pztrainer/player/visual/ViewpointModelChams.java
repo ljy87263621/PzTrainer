@@ -19,6 +19,36 @@ import org.lwjgl.opengl.GL40;
 public final class ViewpointModelChams {
     private static Api api;
     public static volatile String error = "";
+    private record Selection(float[] markers,float[] colours,float[] edges,int[] effects,
+                             int[] identities,int[] groups,int[] layers,int width,int height,long expires) {}
+    private static volatile Selection published;
+    public static volatile int paintedDraws;
+    public static volatile long frameCalls;
+    private static volatile long paintedAt;
+    public static int publish(float[] markers,float[] colours,float[] edges,int[] effects,
+                              int[] identities,int[] groups,int[] layers,int width,int height) {
+        if(markers.length!=48 || colours.length!=48 || edges.length!=48 || effects.length!=12 ||
+            identities.length!=groups.length || identities.length!=layers.length)
+            throw new IllegalArgumentException("Invalid published model selection");
+        published=new Selection(markers,colours,edges,effects,identities,groups,layers,width,height,
+            System.nanoTime()+500_000_000L);
+        return System.nanoTime()-paintedAt<500_000_000L?paintedDraws:0;
+    }
+    public static void clearPublished() {published=null;paintedDraws=0;}
+    public static void renderPublished() {
+        try {
+        Selection value=published;
+        if(value==null || System.nanoTime()>value.expires) {paintedDraws=0;return;}
+        frameCalls++;
+        org.lwjgl.opengl.GL.getCapabilities();
+        int[] viewport=new int[4];GL11.glGetIntegerv(GL11.GL_VIEWPORT,viewport);
+        // This is ViewPoint's output target; render scale can differ from the overlay window.
+        int width=viewport[2]>0?viewport[2]:value.width, height=viewport[3]>0?viewport[3]:value.height;
+        paintedDraws=renderInternal(value.markers,value.colours,value.edges,value.effects,
+            value.identities,value.groups,value.layers,width,height);
+        paintedAt=System.nanoTime();
+        } catch(RuntimeException|LinkageError failure) {paintedDraws=0;error=failure.toString();}
+    }
 
     private static Field field(Class<?> type, String name) throws ReflectiveOperationException {
         Field result = type.getDeclaredField(name);

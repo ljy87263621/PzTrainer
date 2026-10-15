@@ -15,6 +15,14 @@ struct Translation {
 Language g_language = Language::Chinese;
 
 constexpr Translation kTranslations[]{
+    {"VHS/CD 生成", "VHS/CD Spawner", "Создание VHS/CD", "VHS/CD erzeugen"},
+    {"零售 VHS", "Retail VHS", "Магазинные VHS", "Kauf-VHS"},
+    {"家庭 VHS", "Home VHS", "Домашние VHS", "Heim-VHS"},
+    {"搜索节目名称、标题或作者", "Search programme, title or author", "Поиск по названию или автору", "Sendung, Titel oder Autor suchen"},
+    {"游戏原生 · 指定节目", "Native spawn · Selected programme", "Обычное создание · Выбранная запись", "Nativ erzeugen · Gewählte Aufnahme"},
+    {"按节目名选择具体 VHS/CD，支持数量、背包和地面生成；此页不使用随机基础物品。", "Select a specific VHS/CD programme; choose quantity and inventory or ground. This page excludes random blank templates.", "Выберите конкретную запись VHS/CD, количество и место: инвентарь или земля. Случайные шаблоны исключены.", "VHS/CD-Aufnahme, Anzahl und Inventar oder Boden wählen. Zufällige Vorlagen sind ausgeschlossen."},
+    {"已知问题：周围没有僵尸后，自动急停偶尔仍会锁住移动。若卡在原地，请先取下枪械以恢复移动，再重新装备；不需要此功能时可关闭自动急停。", "Known issue: automatic stop may keep movement locked after nearby zombies are gone. Unequip the firearm to restore movement, then equip it again. Disable automatic stop if you do not need it.", "Известная проблема: автостоп иногда блокирует движение после исчезновения зомби рядом. Уберите оружие из рук, затем экипируйте снова. При необходимости отключите автостоп.", "Bekanntes Problem: Autostopp kann die Bewegung blockieren, wenn keine Zombies mehr in der Nähe sind. Schusswaffe ablegen und erneut ausrüsten; bei Bedarf Autostopp deaktivieren."},
+
     {"逐项视野检测", "Per-feature visibility", "Видимость по функциям", "Sichtbarkeit je Funktion"},
     {"方框仅实际可见", "Box: visible only", "Рамка: только видимые", "Box: nur sichtbar"},
     {"名称仅实际可见", "Name: visible only", "Имя: только видимые", "Name: nur sichtbar"},

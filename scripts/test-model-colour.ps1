@@ -24,4 +24,5 @@ try {
     & (Join-Path $output 'model_viewpoint_route_test.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Production ViewPoint route test failed.' }
     & '.\scripts\test-viewpoint-chams.ps1' -GameRoot $GameRoot -JdkRoot $JdkRoot -ViewpointJar $ViewpointJar
+    & '.\scripts\test-native-capture-construction.ps1' -GameRoot $GameRoot -JdkRoot $JdkRoot
 } finally { Pop-Location }

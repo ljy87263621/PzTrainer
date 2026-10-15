@@ -37,7 +37,7 @@ int wmain(int argc,wchar_t** argv) {
     assert(error.empty() && count==3 && catalog.size()==4);
     bool found=false;
     for(const auto& entry:catalog) if(entry.full_type=="RecordedMedia:retail-test") {
-        found=true;assert(entry.texture_id==17);assert(ItemCatalogMatchesSearch(entry,"Woodcraft"));
+        found=true;assert(entry.recorded_media_base_type=="Base.VHS_Retail");assert(entry.texture_id==17);assert(ItemCatalogMatchesSearch(entry,"Woodcraft"));
         assert(ItemCatalogMatchesSearch(entry,"录像带"));assert(ItemCatalogMatchesSearch(entry,"Episode 1"));
         assert(entry.spawn_method_mask==ItemSpawnMethodMask(ItemSpawnMethod::Game));
     }

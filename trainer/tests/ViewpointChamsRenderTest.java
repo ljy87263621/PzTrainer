@@ -241,6 +241,24 @@ public class ViewpointChamsRenderTest {
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
         if((Integer)render.invoke(null,markers,colours,edges,effects,new int[0],new int[0],64,64)!=0)
             throw new AssertionError("Untracked player/scenery received character colour");
+        int[] beforeFrameViewport=new int[4];GL11.glGetIntegerv(GL11.GL_VIEWPORT,beforeFrameViewport);
+        GL11.glViewport(0,0,64,64);
+        effects[0]=2;colours[0]=1;colours[1]=0;colours[2]=0;colours[3]=1;edges[3]=0;
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
+        ViewpointModelChams.publish(markers,colours,edges,effects,identities,groups,new int[]{3},320,180);
+        GL11.glReadPixels(32,30,1,1,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,pixel);
+        if((pixel.get(0)&255)!=0)throw new AssertionError("Overlay publication rendered outside the live frame");
+        ViewpointModelChams.renderPublished();
+        GL11.glReadPixels(32,30,1,1,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,pixel);
+        if(ViewpointModelChams.paintedDraws!=1 || (pixel.get(0)&255)<200)
+            throw new AssertionError("Live frame callback did not render selected model: "+ViewpointModelChams.error);
+        var reset=data.getClass().getDeclaredMethod("reset");reset.setAccessible(true);reset.invoke(data);
+        if(ViewpointModelChams.publish(markers,colours,edges,effects,identities,groups,new int[]{3},64,64)!=1)
+            throw new AssertionError("Overlay inspected retired model records instead of reporting the live frame result");
+        ViewpointModelChams.clearPublished();ViewpointModelChams.renderPublished();
+        if(ViewpointModelChams.paintedDraws!=0)throw new AssertionError("Disabled frame selection remained active");
+        GL11.glViewport(beforeFrameViewport[0],beforeFrameViewport[1],beforeFrameViewport[2],beforeFrameViewport[3]);
+        field(data.getClass(),"count").setInt(data,1);
         instances[0]=null; records[35]=0.001f;
         if(GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM)!=0 || GL11.glGetError()!=GL11.GL_NO_ERROR)
             throw new AssertionError("Independent material layers leaked GL state");

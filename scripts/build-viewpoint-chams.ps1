@@ -8,7 +8,7 @@ if (-not $JdkRoot) { throw 'Set PZ_JDK_ROOT or pass -JdkRoot (JDK 25 or newer).'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildRoot = Join-Path $repoRoot 'obj\viewpoint-chams-java'
 New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
-& (Join-Path $JdkRoot 'bin\javac.exe') --release 17 -encoding UTF-8 -cp (Join-Path $GameRoot 'projectzomboid.jar') -d $buildRoot (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\ViewpointModelChams.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\ModelMaterial.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\ModelScreenPass.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\NativeModelCapture.java')
+& (Join-Path $JdkRoot 'bin\javac.exe') --release 17 -encoding UTF-8 -cp (Join-Path $GameRoot 'projectzomboid.jar') -d $buildRoot (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\ViewpointModelChams.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\ModelMaterial.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\ModelScreenPass.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\NativeModelCapture.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\visual\ViewpointChamsTransforms.java')
 if ($LASTEXITCODE -ne 0) { throw 'Viewpoint model chams compilation failed.' }
 $thermalHeader = Get-Content -LiteralPath (Join-Path $repoRoot 'trainer\src\features\visual\thermal_material.hpp') -Raw
 $thermalBody = [regex]::Match($thermalHeader, '(?s)R"PZTHERMAL\((.*?)\)PZTHERMAL"').Groups[1].Value

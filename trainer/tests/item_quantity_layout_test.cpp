@@ -64,6 +64,7 @@ bool DrawColorSwatch(const char*, features::visual::StateColor*, const ImVec2&) 
 namespace pztrainer::bridge {
 bool RefreshItemCatalog() { return true; }
 bool ForceRefreshItemCatalog() { return true; }
+const std::string& GetItemCatalogStatus() {static std::string value="fixture catalogue";return value;}
 ItemSessionMode GetItemSessionMode() { return ItemSessionMode::Local; }
 const std::vector<ItemCatalogEntry>& GetItemCatalog() {
     static const std::vector<ItemCatalogEntry> catalog = [] {
@@ -72,7 +73,10 @@ const std::vector<ItemCatalogEntry>& GetItemCatalog() {
         item.display_name = "测试物品";
         item.category = "Weapon";
         item.spawn_method_mask = 0x1ff;
-        return std::vector<ItemCatalogEntry>{item};
+        ItemCatalogEntry media;media.full_type="RecordedMedia:fixture";media.display_name="Woodcraft Episode 1";
+        media.category="Entertainment";media.recorded_media_base_type="Base.VHS_Retail";
+        media.spawn_method_mask=ItemSpawnMethodMask(ItemSpawnMethod::Game);
+        return std::vector<ItemCatalogEntry>{item,media};
     }();
     return catalog;
 }
@@ -215,6 +219,24 @@ int main() {
             }
         }
       }
+    }
+    for(const auto language:{pztrainer::settings::Language::Chinese,pztrainer::settings::Language::English,
+                             pztrainer::settings::Language::Russian,pztrainer::settings::Language::German}) {
+        pztrainer::settings::SetLanguage(language);
+        for(float zoom:{0.75f,1.34f,2.5f})for(float width:{960.f,1920.f}) {
+            scale=zoom;pztrainer::ui::ApplyTheme();++cases;
+            for(int frame=0;frame<20;++frame) {
+                items.clear();controls.clear();PrepareHeadlessFrame();io.DisplaySize=ImVec2(width,1080);
+                ImGui::NewFrame();ImGui::SetNextWindowPos(ImVec2(20,20));
+                ImGui::SetNextWindowSize(ImVec2(width-40,900));
+                ImGui::Begin("RecordedMediaAudit",nullptr,ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize);
+                pztrainer::ui::DrawRecordedMediaGenerator({});ImGui::End();FinishHeadlessFrame();
+            }
+            if(!controls.count("##ItemQuantity")) {++failures;continue;}
+            const auto& g=controls.at("##ItemQuantity");
+            if(g.bounds.Min.x<g.clip.Min.x-1 || g.bounds.Max.x>g.clip.Max.x+1 ||
+               g.bounds.Min.y<g.clip.Min.y-1 || g.bounds.Max.y>g.clip.Max.y+1)++failures;
+        }
     }
     int interaction_checks = 0;
     scale = 1.0f;

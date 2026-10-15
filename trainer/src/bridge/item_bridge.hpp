@@ -41,6 +41,7 @@ struct ItemCatalogEntry {
     std::string display_name;
     std::string category;
     std::string search_terms;
+    std::string recorded_media_base_type;
     unsigned int texture_id = 0;
     float uv_min_x = 0.0f;
     float uv_min_y = 0.0f;

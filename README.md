@@ -18,16 +18,16 @@ This repository is organized as one build unit:
 From the repository root, run:
 
 ```powershell
-.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.6'
+.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.7'
 ```
 
 The script builds the trainer first, builds the launcher with that DLL embedded as a resource, writes SHA-256 sums, and produces a portable ZIP under `artifacts\`.
 
-The beta.6 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
+The beta.7 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
 
 The trainer includes optional Viewpoint 3D compatibility. When a compatible Viewpoint mod is installed in the target Project Zomboid build, the visual page exposes 3D ESP for zombies, players, animals, and vehicles, and the aim pages expose separate 3D Legit/Rage switches. The portable package embeds the bridge and Java helper but does not redistribute the third-party Viewpoint mod.
 
-Beta.6 adds playable named VHS/CD generation, silent-only Rage target collection, furniture catalog entries, model fill and rim controls, per-feature game visibility filters, and default configuration loading. See [media and silent aim](docs/RECORDED_MEDIA_SILENT_AIM.md), [visibility and default configs](docs/VISIBILITY_DEFAULT_CONFIG.md), and [model effects](docs/MODEL_COLOUR_FIXES.md) for behavior and validation limits.
+Beta.7 adds a dedicated VHS/CD selection page and repairs native model capture and ViewPoint frame timing; see [capture and media UI](docs/MODEL_CAPTURE_MEDIA_UI.md). The current build also includes playable named VHS/CD generation, silent-only Rage target collection, furniture catalog entries, model fill and rim controls, per-feature game visibility filters, and default configuration loading. See [media and silent aim](docs/RECORDED_MEDIA_SILENT_AIM.md), [visibility and default configs](docs/VISIBILITY_DEFAULT_CONFIG.md), and [model effects](docs/MODEL_COLOUR_FIXES.md) for behavior and validation limits.
 
 ## Local SDK
 

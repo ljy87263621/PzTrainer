@@ -5,6 +5,7 @@
 namespace pztrainer::ui {
 
 void DrawItemGenerator(const bridge::FrameSnapshot& frame);
+void DrawRecordedMediaGenerator(const bridge::FrameSnapshot& frame);
 bool IsCorpsePayloadSchemeActive();
 
 }  // namespace pztrainer::ui

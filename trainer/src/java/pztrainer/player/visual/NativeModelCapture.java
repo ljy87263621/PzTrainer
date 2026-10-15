@@ -32,13 +32,36 @@ public final class NativeModelCapture {
         if(group>=6 && !(character instanceof IsoAnimal))return -1;
         return group;
     }
+    public static boolean ownsSlot(IsoGameCharacter character,ModelManager.ModelSlot slot) {
+        return character!=null && slot!=null && slot.active && !slot.remove && slot.model!=null &&
+            slot.character==character && slot.model.object==character;
+    }
+    private static ModelSlotRenderData prepare(ModelManager.ModelSlot slot) {
+        ModelSlotRenderData data=ModelSlotRenderData.alloc();
+        data.modelSlot=slot;
+        slot.renderRefCount++;
+        try {
+            // init only fills frame data; initModel establishes character, pose and position first.
+            data.initModel(slot);
+            data.init(slot);
+            data.alpha=1f;
+            return data;
+        } catch(RuntimeException failure) {
+            try { data.postRender(); } catch(RuntimeException cleanup) {failure.addSuppressed(cleanup);}
+            throw failure;
+        }
+    }
     private static boolean enqueue(IsoGameCharacter character,int owner,int group,float[] markers) {
+        try {return enqueueReady(character,owner,group,markers);}
+        catch(RuntimeException failure) {error=failure.toString();return false;}
+    }
+    private static boolean enqueueReady(IsoGameCharacter character,int owner,int group,float[] markers) {
         if(character.legsSprite==null || character.legsSprite.modelSlot==null)return false;
         var slot=character.legsSprite.modelSlot;
-        if(!slot.active || slot.remove || slot.model==null || !character.hasActiveModel())return false;
-        ModelSlotRenderData data=ModelSlotRenderData.alloc().init(slot);
+        if(!ownsSlot(character,slot) || !character.hasActiveModel() || character.getAnimationPlayer()==null)return false;
+        ModelSlotRenderData data=prepare(slot);
         ColorInfo colour=new ColorInfo(markers[group*4],markers[group*4+1],markers[group*4+2],0);
-        SpriteRenderer.instance.drawGeneric(new TextureDraw.GenericDrawer() {
+        try {SpriteRenderer.instance.drawGeneric(new TextureDraw.GenericDrawer() {
             public void render() {
                 try {
                     data.checkReady();
@@ -46,7 +69,7 @@ public final class NativeModelCapture {
                 } catch(RuntimeException failure) { error=failure.toString(); }
             }
             public void postRender() { data.postRender(); }
-        });
+        });} catch(RuntimeException failure) {data.postRender();throw failure;}
         return true;
     }
     /** Called through MainThread's queue; pose/refcount initialization belongs to the game thread. */
@@ -64,12 +87,14 @@ public final class NativeModelCapture {
         if(!selected.isEmpty())enqueue(IsoPlayer.getInstance(),-1,0,markers);
         for(IsoMovingObject object:objects) {
             if(!(object instanceof IsoGameCharacter character))continue;
+            try {
             int owner=System.identityHashCode(object);
             int group=selectedGroup(character,IsoPlayer.getInstance(),selected);
             if(group<0 || character.legsSprite==null)continue;
             if(!character.isAddedToModelManager())ModelManager.instance.Add(character);
             if(character.legsSprite.modelSlot==null)continue;
             if(enqueue(character,owner,group,markers))queued++;
+            } catch(RuntimeException failure) {error=failure.toString();}
         }
         return queued;
     }

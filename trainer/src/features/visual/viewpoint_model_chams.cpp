@@ -3,6 +3,8 @@
 
 #include <jvmti.h>
 #include <chrono>
+#include <atomic>
+#include <cstring>
 #include <cmath>
 #include <vector>
 
@@ -15,6 +17,12 @@ namespace {
 
 jclass g_helper = nullptr;
 jmethodID g_render = nullptr;
+jmethodID g_clear = nullptr;
+jclass g_transformer = nullptr;
+jmethodID g_transform = nullptr;
+jvmtiEnv* g_hook_tool = nullptr;
+std::atomic<bool> g_transformed{false};
+bool g_ready = false;
 jfieldID g_error = nullptr;
 ViewpointModelChamsStatus g_status;
 std::chrono::steady_clock::time_point g_retry{};
@@ -25,8 +33,50 @@ bool ClearException(JNIEnv* env) {
     return true;
 }
 
+void JNICALL TransformFrame(jvmtiEnv* tool,JNIEnv* env,jclass type,jobject,const char* name,
+    jobject,jint size,const unsigned char* bytes,jint* new_size,unsigned char** new_bytes) {
+    if(!type || !name || std::strcmp(name,"viewpoint/render/WorldRenderer")!=0 || !g_transformer)return;
+    if(env->PushLocalFrame(4)!=JNI_OK)return;
+    jbyteArray input=env->NewByteArray(size);
+    if(input)env->SetByteArrayRegion(input,0,size,reinterpret_cast<const jbyte*>(bytes));
+    auto output=input && !env->ExceptionCheck()?static_cast<jbyteArray>(env->CallStaticObjectMethod(g_transformer,g_transform,input)):nullptr;
+    if(output && !env->ExceptionCheck()) {
+        const jint length=env->GetArrayLength(output);unsigned char* result=nullptr;
+        if(length>0 && tool->Allocate(length,&result)==JVMTI_ERROR_NONE) {
+            env->GetByteArrayRegion(output,0,length,reinterpret_cast<jbyte*>(result));
+            if(!env->ExceptionCheck()) {*new_size=length;*new_bytes=result;g_transformed.store(true);}
+            else tool->Deallocate(result);
+        }
+    }
+    ClearException(env);env->PopLocalFrame(nullptr);
+}
+bool InstallFrameHook(JNIEnv* env,std::string& error) {
+    JavaVM* vm=nullptr;
+    if(!g_hook_tool) {
+        if(env->GetJavaVM(&vm)!=JNI_OK || vm->GetEnv(reinterpret_cast<void**>(&g_hook_tool),JVMTI_VERSION_1_2)!=JNI_OK)return false;
+        jvmtiCapabilities caps{};caps.can_retransform_classes=1;
+        if(g_hook_tool->AddCapabilities(&caps)!=JVMTI_ERROR_NONE)return false;
+    }
+    if(!g_transformer) {
+        jclass local=bridge::LoadEmbeddedJavaClass(env,"pztrainer.player.visual.ViewpointChamsTransforms",error);
+        if(!local)return false;
+        g_transform=env->GetStaticMethodID(local,"transform","([B)[B");
+        if(!ClearException(env) && g_transform)g_transformer=static_cast<jclass>(env->NewGlobalRef(local));
+        env->DeleteLocalRef(local);if(!g_transformer)return false;
+    }
+    jclass renderer=bridge::LoadEmbeddedJavaClass(env,"viewpoint.render.WorldRenderer",error);
+    if(!renderer)return false;
+    jvmtiEventCallbacks callbacks{};callbacks.ClassFileLoadHook=TransformFrame;
+    g_transformed.store(false);
+    const bool installed=g_hook_tool->SetEventCallbacks(&callbacks,sizeof(callbacks))==JVMTI_ERROR_NONE &&
+        g_hook_tool->SetEventNotificationMode(JVMTI_ENABLE,JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,nullptr)==JVMTI_ERROR_NONE &&
+        g_hook_tool->RetransformClasses(1,&renderer)==JVMTI_ERROR_NONE && g_transformed.load();
+    g_hook_tool->SetEventNotificationMode(JVMTI_DISABLE,JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,nullptr);
+    env->DeleteLocalRef(renderer);return installed;
+}
+
 bool Initialize(JNIEnv* env) {
-    if (g_helper) return true;
+    if (g_ready) return true;
     const auto now = std::chrono::steady_clock::now();
     if (now < g_retry) return false;
     g_retry = now + std::chrono::seconds(2);
@@ -50,11 +100,15 @@ bool Initialize(JNIEnv* env) {
         g_status.message = error;
         return false;
     }
-    g_render = env->GetStaticMethodID(helper, "render", "([F[F[F[I[I[I[III)I");
+    g_render = env->GetStaticMethodID(helper, "publish", "([F[F[F[I[I[I[III)I");
     g_error = env->GetStaticFieldID(helper, "error", "Ljava/lang/String;");
-    if (!ClearException(env) && g_render && g_error) g_helper = static_cast<jclass>(env->NewGlobalRef(helper));
+    g_clear = env->GetStaticMethodID(helper,"clearPublished","()V");
+    if (!ClearException(env) && g_render && g_error && g_clear && !g_helper)
+        g_helper = static_cast<jclass>(env->NewGlobalRef(helper));
     env->DeleteLocalRef(helper);
-    return g_helper != nullptr;
+    g_ready=g_helper && InstallFrameHook(env,error);
+    if(!g_ready)g_status.message=error.empty()?"ViewPoint 模型帧回调校验失败":error;
+    return g_ready;
 }
 
 }  // namespace
@@ -131,6 +185,8 @@ void DrawViewpointModelChams(const std::array<ImVec4, 12>& markers,
 void ResetViewpointModelChamsStatus(const std::string& message) {
     g_status.painted_draws = 0;
     g_status.message = message;
+    JNIEnv* env=bridge::GetCurrentJniEnvironment();
+    if(env && g_helper && g_clear) {env->CallStaticVoidMethod(g_helper,g_clear);ClearException(env);}
 }
 
 const ViewpointModelChamsStatus& GetViewpointModelChamsStatus() { return g_status; }

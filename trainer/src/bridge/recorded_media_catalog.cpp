@@ -62,6 +62,7 @@ std::size_t AppendRecordedMediaCatalog(JNIEnv* env,std::vector<ItemCatalogEntry>
         auto sample=templates.find(fields[4]);
         if(sample!=templates.end()) entry=sample->second;
         entry.full_type=fields[0];entry.display_name=fields[1];entry.category=fields[2];entry.search_terms=fields[3];
+        entry.recorded_media_base_type=fields[4];
         entry.spawn_method_mask=ItemSpawnMethodMask(ItemSpawnMethod::Game);
         entries.push_back(std::move(entry));
     }

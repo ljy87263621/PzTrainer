@@ -268,6 +268,10 @@ void DrawRageSettings(AimSettings& settings, RageWeaponSettings* preset,
     components::CompactToggleRow("瞄准僵尸", &preset->target_zombies);
     components::CompactToggleRow("瞄准 PVP 玩家", &preset->target_players);
     components::CompactToggleRow("自动急停", &preset->automatic_stop);
+    if (ImGui::IsItemHovered()) {
+        components::RoundedTooltip(
+            "已知问题：周围没有僵尸后，自动急停偶尔仍会锁住移动。若卡在原地，请先取下枪械以恢复移动，再重新装备；不需要此功能时可关闭自动急停。");
+    }
     components::CompactToggleRow("自动开枪", &preset->automatic_fire);
     components::CompactToggleRow(
         "静默瞄准（不移动鼠标）", &preset->silent_aim);

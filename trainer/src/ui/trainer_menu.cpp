@@ -70,6 +70,7 @@ enum class Page {
     Lua,
     LuaRegistered,
     Settings,
+    RecordedMedia,
 };
 
 struct SearchEntry {
@@ -85,13 +86,14 @@ struct SearchResult {
     int visual_category = -1;
 };
 
-constexpr std::array<SearchEntry, 12> kSearchEntries{{
+constexpr std::array<SearchEntry, 13> kSearchEntries{{
     {"Rage", "rage 暴力自瞄 自动瞄准 自动开枪 静默瞄准", Page::Rage},
     {"Legit", "legit 辅助瞄准 平滑 精度", Page::Legit},
     {"视觉 ESP", "视觉 esp 僵尸 玩家 动物 载具 透视 方框 骨骼", Page::Visual},
     {"世界视觉", "世界视觉 伪白天 暗区 天气 雾 地图迷雾 降水 枪口射线", Page::WorldVisual},
     {"角色状态", "角色状态 无限生命 无敌 穿墙 地图传送 体力 耐久 子弹 状态效果 暴击 近战 背包 修复 衣物 肌肉 隐身 水桶", Page::Character},
     {"物品生成", "物品生成 道具 武器 弹药", Page::Items},
+    {"VHS/CD 生成", "vhs cd 录像带 录影带 光盘 节目 生成", Page::RecordedMedia},
     {"技能经验", "技能经验 熟练度 等级 xp", Page::Experience},
     {"载具控制", "载具 车辆 引擎 修复 汽油 传送 无碰撞 即停 Instant", Page::VehicleControl},
     {"世界交互", "世界 僵尸 AI 击杀 尸体 容器 战利品 动物 名字 音效 格子 门窗 解锁 碎玻璃 点火 投掷物", Page::WorldInteraction},
@@ -142,6 +144,7 @@ const char* PageTitle() {
         case Page::WorldVisual: return settings::Translate("世界视觉");
         case Page::Character: return settings::Translate("角色状态");
         case Page::Items: return settings::Translate("物品生成");
+        case Page::RecordedMedia: return settings::Translate("VHS/CD 生成");
         case Page::Experience: return settings::Translate("技能经验");
         case Page::VehicleControl: return settings::Translate("载具控制");
         case Page::WorldInteraction: return settings::Translate("世界交互");
@@ -253,9 +256,10 @@ void DrawSidebar() {
         [](const bridge::LuaUiCategory& category) {
             return !category.standalone;
         }));
-    navigation::BeginGroup("CharacterNavigation", 4);
+    navigation::BeginGroup("CharacterNavigation", 5);
     SidebarNav("角色状态", navigation::Icon::User, Page::Character);
     SidebarNav("物品生成", navigation::Icon::Package, Page::Items);
+    SidebarNav("VHS/CD 生成", navigation::Icon::Package, Page::RecordedMedia);
     SidebarNav("技能经验", navigation::Icon::Spark, Page::Experience);
     SidebarNav("角色创建", navigation::Icon::User, Page::CharacterCreation);
     navigation::EndGroup();
@@ -901,6 +905,7 @@ void DrawContent(const bridge::FrameSnapshot& frame) {
         case Page::WorldVisual: DrawWorldVisual(); break;
         case Page::Character: DrawCharacterStatus(); break;
         case Page::Items: DrawItemGenerator(frame); break;
+        case Page::RecordedMedia: DrawRecordedMediaGenerator(frame); break;
         case Page::Experience: DrawExperienceEditor(); break;
         case Page::VehicleControl: DrawVehicleControlPage(); break;
         case Page::WorldInteraction: DrawWorldInteractionPage(); break;
