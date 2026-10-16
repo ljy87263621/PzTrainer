@@ -1,6 +1,6 @@
 # PzTrainer
 
-Current source baseline: **v1.0.1 Stable** (user-confirmed beta.9 fixes). `main` is the Stable line; `beta` is the default target for subsequent development and source commits. Stable promotion requires an explicit request. The current preparation stops at the VMProtect marker input DLL; no v1.0.1 Release/tag or matching Launcher package has been created. See [VMP handoff and branch workflow](docs/VMP_HANDOFF.md).
+Current development version: **v1.0.1 beta1**, repairing furniture and named VHS/CD routing in the item generator. `main` retains **v1.0.1 Stable**; `beta` is the default development line. The Beta preparation stops at the VMProtect marker input DLL; wait for the user's processed DLL before building its Launcher. Stable promotion and GitHub Releases require explicit requests. See [prepared item routes](docs/PREPARED_ITEM_ROUTES.md) and [VMP handoff](docs/VMP_HANDOFF.md).
 
 PzTrainer is a Windows x64 Project Zomboid single-player assistance DLL and its companion launcher. The launcher starts the Steam game when needed and embeds the exact trainer DLL produced by the same build.
 
@@ -25,7 +25,7 @@ From the repository root, run:
 
 The script builds the trainer first, builds the launcher with that DLL embedded as a resource, writes SHA-256 sums, and produces a portable ZIP under `artifacts\`.
 
-The command above is an example of an explicit future Beta package version, not a published version. For the current protected Stable preparation, use `scripts/build-vmp-marker.ps1 -Version '1.0.1' -VmProtectRoot '<SDK root>'` and return the processed DLL before building Launcher. The ordinary portable script refuses marker-enabled packaging.
+The command above is an example of an explicit future Beta package version, not a published version. For the current marker-only Beta preparation, use `scripts/build-vmp-marker.ps1 -Version '1.0.1-beta.1' -DisplayName 'v1.0.1 beta1' -VmProtectRoot '<SDK root>'` and return the processed DLL before building Launcher. The ordinary portable script refuses marker-enabled packaging.
 
 The beta.9 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
 

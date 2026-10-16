@@ -6,6 +6,8 @@ import zombie.inventory.types.Radio;
 import zombie.network.GameClient;
 import zombie.network.PacketTypes.PacketType;
 import zombie.network.packets.NetTimedActionPacket;
+import zombie.inventory.InventoryItem;
+import pztrainer.player.items.PreparedSpawnItems;
 
 public final class MediaItemPayload {
     private static final short PAYLOAD_MEDIA_INDEX = Short.MAX_VALUE;
@@ -25,7 +27,9 @@ public final class MediaItemPayload {
         var device = radio.getDeviceData();
         if (device.hasMedia() && device.getMediaIndex() != PAYLOAD_MEDIA_INDEX) return false;
 
-        device.setMediaIndex(PAYLOAD_MEDIA_INDEX);
+        InventoryItem target = PreparedSpawnItems.create(fullType);
+        short targetIndex = target.isRecordedMedia() ? target.getRecordedMediaIndex() : PAYLOAD_MEDIA_INDEX;
+        device.setMediaIndex(targetIndex);
 
         byte hand = player.getPrimaryHandItem() == radio ? (byte)1 : (byte)2;
         var connection = GameClient.connection;
@@ -37,9 +41,7 @@ public final class MediaItemPayload {
             writer.putByte(player.playerIndex);
             writer.putByte(hand);
             writer.putShort((short)7);
-            writer.putShort(PAYLOAD_MEDIA_INDEX);
-            writer.putBoolean(true);
-            writer.putUTF(fullType);
+            writeTarget(writer, target);
             if (connection.isLimitExceeded(type)) {
                 connection.cancelPacket();
                 device.setMediaIndex((short)-1);
@@ -55,6 +57,12 @@ public final class MediaItemPayload {
         }
     }
 
+    static void writeTarget(ByteBufferWriter writer, InventoryItem target) {
+        writer.putShort(target.isRecordedMedia() ? target.getRecordedMediaIndex() : PAYLOAD_MEDIA_INDEX);
+        writer.putBoolean(true);
+        writer.putUTF(PreparedSpawnItems.factoryType(target));
+    }
+
     public static boolean sendRemove(IsoPlayer player, Radio radio) {
         if (!isUsable(player, radio)) return false;
         NetTimedActionPacket.createNewAndSend(
@@ -65,7 +73,7 @@ public final class MediaItemPayload {
 
     public static int countInventory(IsoPlayer player, String fullType) {
         if (player == null || player.getInventory() == null || fullType == null) return -1;
-        return player.getInventory().getItemCount(fullType);
+        return PreparedSpawnItems.count(player.getInventory(), fullType);
     }
 
     private static boolean isUsable(IsoPlayer player, Radio radio) {

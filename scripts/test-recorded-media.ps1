@@ -4,7 +4,7 @@ if (-not $GameRoot -or -not $JdkRoot) { throw 'Pass -GameRoot and -JdkRoot, or s
 $repoRoot=Split-Path -Parent $PSScriptRoot
 $output=Join-Path $repoRoot 'obj\media-tests'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
-& (Join-Path $JdkRoot 'bin\javac.exe') --release 17 -encoding UTF-8 -cp (Join-Path $GameRoot 'projectzomboid.jar') -d $output (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\items\RecordedMediaItems.java') (Join-Path $repoRoot 'trainer\tests\RecordedMediaItemsTest.java')
+& (Join-Path $JdkRoot 'bin\javac.exe') --release 17 -encoding UTF-8 -cp (Join-Path $GameRoot 'projectzomboid.jar') -d $output (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\items\RecordedMediaItems.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\items\PreparedSpawnItems.java') (Join-Path $repoRoot 'trainer\tests\RecordedMediaItemsTest.java')
 if ($LASTEXITCODE -ne 0) { throw 'Recorded media fixture compilation failed.' }
 & (Join-Path $GameRoot 'jre64\bin\java.exe') --enable-native-access=ALL-UNNAMED "-Duser.home=$output\profile" -cp "$output;$GameRoot\projectzomboid.jar" RecordedMediaItemsTest
 if ($LASTEXITCODE -ne 0) { throw 'Recorded media tests failed.' }

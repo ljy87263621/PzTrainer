@@ -915,6 +915,8 @@ bool RefreshItemCatalogInternal(bool force_refresh) {
     std::string media_error;
     const std::size_t media_count=AppendRecordedMediaCatalog(env,refreshed_catalog,media_error);
     for (ItemCatalogEntry& entry : refreshed_catalog) {
+        if(NeedsPreparedItemCreation(entry.full_type))
+            entry.spawn_method_mask=PreparedItemSpawnMethods(entry.full_type);
         if (ammo_types.find(entry.full_type) != ammo_types.end()) {
             entry.spawn_method_mask |=
                 ItemSpawnMethodMask(ItemSpawnMethod::WeaponAmmoExtract);
@@ -1039,12 +1041,10 @@ PZ_VMP_NOINLINE const ItemSpawnResult& SpawnItem(const std::string& full_type, i
     }
     g_last_result = ItemSpawnResult{};
     g_last_result.attempted = true;
-    if (IsDynamicMoveableItemType(full_type) && method != ItemSpawnMethod::Game) {
-        g_last_result.message = "家具图块物品仅支持游戏原生生成";
-        return g_last_result;
-    }
-    if (IsRecordedMediaKey(full_type) && method != ItemSpawnMethod::Game) {
-        g_last_result.message = "指定节目录像带仅支持游戏原生生成";
+    if (!PreparedItemSupportsMethod(full_type,method)) {
+        g_last_result.message = IsDynamicMoveableItemType(full_type)
+            ? "当前方案不支持家具图块，请使用尸体、灯具或媒体载荷"
+            : "当前方案无法保留录像带/CD节目，请使用尸体或媒体载荷";
         return g_last_result;
     }
     JNIEnv* env = GetCurrentJniEnvironment();
@@ -1330,8 +1330,8 @@ PZ_VMP_NOINLINE const ItemSpawnResult& SpawnCorpsePayloadBatch(
     int requested_total = 0;
     for (const ItemSpawnBatchEntry& item : items) {
         if (item.full_type.empty()) continue;
-        if (IsDynamicMoveableItemType(item.full_type) || IsRecordedMediaKey(item.full_type)) {
-            g_last_result.message = "家具和指定节目录像带仅支持游戏原生生成";
+        if (!PreparedItemSupportsMethod(item.full_type,ItemSpawnMethod::CorpsePayload)) {
+            g_last_result.message = "当前物品不支持尸体载荷";
             return g_last_result;
         }
         const int quantity = std::clamp(item.quantity, 1, 100);

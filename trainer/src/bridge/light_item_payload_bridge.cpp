@@ -8,6 +8,7 @@
 
 #include "bridge/lua_ui_bridge.hpp"
 #include "bridge/main_thread_invoker.hpp"
+#include "bridge/recorded_media_catalog.hpp"
 
 namespace pztrainer::bridge {
 namespace {
@@ -77,6 +78,7 @@ PZ_VMP_NOINLINE bool Initialize(JNIEnv* env) {
     if (g_bindings.ready) return true;
     PZ_VMP_BEGIN_ULTRA("PZ.DLL.ItemLightPayloadBindings");
     std::string error;
+    if(!PreparedSpawnItemHelper(env,error)) {g_status=error;return false;}
     jclass runtime = LoadEmbeddedJavaClass(
         env, "pztrainer.items.LightItemPayload", error);
     jclass boolean_class = env->FindClass("java/lang/Boolean");

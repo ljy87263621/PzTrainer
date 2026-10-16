@@ -1,4 +1,5 @@
 #include "bridge/recorded_media_catalog.hpp"
+#include "bridge/item_catalog_search.hpp"
 #include "bridge/lua_ui_bridge.hpp"
 #include "runtime/lua_bridge_resource.hpp"
 #include "../../../protection/vmprotect.hpp"
@@ -9,6 +10,7 @@
 namespace pztrainer::bridge {
 namespace {
 jclass g_helper=nullptr;
+jclass g_prepared_helper=nullptr;
 bool Clear(JNIEnv* env) {
     if(!env->ExceptionCheck()) return false;
     env->ExceptionClear(); return true;
@@ -38,6 +40,14 @@ PZ_VMP_NOINLINE jclass RecordedMediaItemHelper(JNIEnv* env,std::string& error) {
     PZ_VMP_END();
     return g_helper;
 }
+jclass PreparedSpawnItemHelper(JNIEnv* env,std::string& error) {
+    if(g_prepared_helper)return g_prepared_helper;
+    if(!RecordedMediaItemHelper(env,error))return nullptr;
+    jclass local=LoadEmbeddedJavaClass(env,"pztrainer.player.items.PreparedSpawnItems",error);
+    if(local) {g_prepared_helper=static_cast<jclass>(env->NewGlobalRef(local));env->DeleteLocalRef(local);}
+    if(Clear(env))g_prepared_helper=nullptr;
+    return g_prepared_helper;
+}
 std::size_t AppendRecordedMediaCatalog(JNIEnv* env,std::vector<ItemCatalogEntry>& entries,std::string& error) {
     error.clear();
     jclass helper=RecordedMediaItemHelper(env,error);
@@ -66,7 +76,7 @@ std::size_t AppendRecordedMediaCatalog(JNIEnv* env,std::vector<ItemCatalogEntry>
         if(sample!=templates.end()) entry=sample->second;
         entry.full_type=fields[0];entry.display_name=fields[1];entry.category=fields[2];entry.search_terms=fields[3];
         entry.recorded_media_base_type=fields[4];
-        entry.spawn_method_mask=ItemSpawnMethodMask(ItemSpawnMethod::Game);
+        entry.spawn_method_mask=PreparedItemSpawnMethods(entry.full_type);
         entries.push_back(std::move(entry));
     }
     env->PopLocalFrame(nullptr); return entries.size()-before;

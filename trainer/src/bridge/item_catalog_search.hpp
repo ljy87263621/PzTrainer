@@ -21,6 +21,18 @@ inline bool IsDynamicMoveableItemType(const std::string& type) {
 inline bool NeedsPreparedItemCreation(const std::string& type) {
     return IsDynamicMoveableItemType(type) || NeedsRecordedMediaCreation(type);
 }
+inline std::uint32_t PreparedItemSpawnMethods(const std::string& type) {
+    if(!NeedsPreparedItemCreation(type))return 0;
+    auto methods=ItemSpawnMethodMask(ItemSpawnMethod::Game) |
+        ItemSpawnMethodMask(ItemSpawnMethod::CorpsePayload) |
+        ItemSpawnMethodMask(ItemSpawnMethod::MediaPayload);
+    if(IsDynamicMoveableItemType(type))methods|=ItemSpawnMethodMask(ItemSpawnMethod::LightPayload);
+    return methods;
+}
+inline bool PreparedItemSupportsMethod(const std::string& type,ItemSpawnMethod method) {
+    return !NeedsPreparedItemCreation(type) ||
+        (PreparedItemSpawnMethods(type)&ItemSpawnMethodMask(method))!=0;
+}
 inline std::string ItemSearchLower(std::string value) {
     std::transform(value.begin(),value.end(),value.begin(),[](unsigned char c) {
         return c < 128 ? static_cast<char>(std::tolower(c)) : static_cast<char>(c);

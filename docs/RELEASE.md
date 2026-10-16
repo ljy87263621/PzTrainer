@@ -2,6 +2,10 @@
 
 Current Release x64 builds use the static MSVC runtime (`/MT`) in both Trainer and Launcher. They do not need separate `msvcp140.dll` or `vcruntime140*.dll` files. Rebuilding Trainer changes the protection input: process the newly built marker-enabled DLL in VMProtect again before embedding it in a protected Launcher. A marker-enabled DLL that has not been processed still imports `VMProtectSDK64.dll` and must not be distributed as a protected release.
 
+## v1.0.1 beta1 marker preparation
+
+The current `beta` build repairs prepared furniture/recorded-media capabilities and state preservation in corpse/light/media routes. See [prepared item routes](PREPARED_ITEM_ROUTES.md). The display name is `v1.0.1 beta1`; artifact paths use `1.0.1-beta.1`. Generate only the Marker Trainer DLL, verify both embedded helper JARs and wait for the user's protected output before building Launcher. No Release/tag is created in this phase; existing Stable binaries remain intact.
+
 ## v1.0.1 Stable preparation
 
 The user confirmed the beta.9 native top-down model fix. `main` now represents Stable; `beta` is the default development line unless the user explicitly requests Stable promotion. This phase produces only the marker-enabled trainer input using `scripts/build-vmp-marker.ps1`, with isolated output/intermediates. No Stable tag/Release or rebuilt Launcher is produced. Return the VMProtect-processed DLL before Launcher embedding and portable packaging; see [VMP handoff](VMP_HANDOFF.md) for paths, marker decisions and the subsequent verification gate.

@@ -5,6 +5,7 @@ import zombie.iso.IsoGridSquare;
 import zombie.iso.IsoObject;
 import zombie.iso.objects.IsoLightSwitch;
 import zombie.network.packets.NetTimedActionPacket;
+import pztrainer.player.items.PreparedSpawnItems;
 
 public final class LightItemPayload {
     private static final int SEARCH_RADIUS = 2;
@@ -57,7 +58,7 @@ public final class LightItemPayload {
 
     public static int countInventory(IsoPlayer player, String fullType) {
         if (player == null || player.getInventory() == null || fullType == null) return -1;
-        return player.getInventory().getItemCount(fullType);
+        return PreparedSpawnItems.count(player.getInventory(), fullType);
     }
 
     private static boolean isUsable(IsoPlayer player, IsoLightSwitch light) {

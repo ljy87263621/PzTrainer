@@ -114,7 +114,7 @@ std::size_t AppendMoveableItemCatalog(JNIEnv* env,std::vector<ItemCatalogEntry>&
         entry.search_terms=MoveableSearchTerms(Property(env,props,"GroupName")+" "+Property(env,props,"CustomName"),entry.display_name);
         const std::string facing=Property(env,props,"Facing");
         if(!facing.empty())entry.display_name+=" ["+facing+"]";
-        entry.spawn_method_mask=ItemSpawnMethodMask(ItemSpawnMethod::Game);
+        entry.spawn_method_mask=PreparedItemSpawnMethods(entry.full_type);
         jobject texture=env->CallObjectMethod(sample,g_bindings.texture);
         if(texture && !Clear(env)) {
             const jint id=env->CallIntMethod(texture,g_bindings.id);

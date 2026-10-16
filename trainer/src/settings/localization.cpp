@@ -15,6 +15,7 @@ struct Translation {
 Language g_language = Language::Chinese;
 
 constexpr Translation kTranslations[]{
+    {"%zu 项家具或节目匹配搜索，但当前方案不支持。家具可用尸体／灯具／媒体载荷；节目可用尸体／媒体载荷。", "%zu furniture/programme matches are unsupported by this scheme. Furniture: corpse/light/media; recordings: corpse/media.", "%zu совпадений мебели/записей недоступны для этой схемы. Мебель: труп/лампа/медиа; записи: труп/медиа.", "%zu Möbel-/Sendungstreffer werden nicht unterstützt. Möbel: Leiche/Lampe/Medien; Aufnahmen: Leiche/Medien."},
     {"投影随当前视角自动切换", "Projection follows the current view automatically", "Проекция автоматически следует текущему виду", "Projektion folgt automatisch der aktuellen Ansicht"},
     {"已知问题：周围没有僵尸后，自动急停偶尔仍会锁住移动。若卡在原地，请先取下枪械以恢复移动，再重新装备；不需要此功能时可关闭自动急停。", "Known issue: automatic stop may keep movement locked after nearby zombies are gone. Unequip the firearm to restore movement, then equip it again. Disable automatic stop if you do not need it.", "Известная проблема: автостоп иногда блокирует движение после исчезновения зомби рядом. Уберите оружие из рук, затем экипируйте снова. При необходимости отключите автостоп.", "Bekanntes Problem: Autostopp kann die Bewegung blockieren, wenn keine Zombies mehr in der Nähe sind. Schusswaffe ablegen und erneut ausrüsten; bei Bedarf Autostopp deaktivieren."},
 

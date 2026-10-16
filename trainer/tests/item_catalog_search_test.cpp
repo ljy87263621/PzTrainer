@@ -24,4 +24,16 @@ int main() {
     assert(ItemCatalogMatchesSearch(ordinary,""));
     assert(!ItemCatalogMatchesSearch(ordinary,"隔板"));
     assert(MoveableSearchTerms("Chair","椅子").find("隔板")==std::string::npos);
+    for(int index=0;index<=static_cast<int>(ItemSpawnMethod::MediaPayload);++index) {
+        const auto method=static_cast<ItemSpawnMethod>(index);
+        const bool furniture_supported=method==ItemSpawnMethod::Game || method==ItemSpawnMethod::CorpsePayload ||
+            method==ItemSpawnMethod::LightPayload || method==ItemSpawnMethod::MediaPayload;
+        const bool media_supported=method==ItemSpawnMethod::Game || method==ItemSpawnMethod::CorpsePayload || method==ItemSpawnMethod::MediaPayload;
+        assert(PreparedItemSupportsMethod(divider.full_type,method)==furniture_supported);
+        assert(PreparedItemSupportsMethod("RecordedMedia:programme",method)==media_supported);
+        assert(PreparedItemSupportsMethod("Base.VHS_Retail",method)==media_supported);
+        assert(PreparedItemSupportsMethod("Base.VHS_Home",method)==media_supported);
+        assert(PreparedItemSupportsMethod("Base.Disc_Retail",method)==media_supported);
+        assert(PreparedItemSupportsMethod("Base.Axe",method));
+    }
 }

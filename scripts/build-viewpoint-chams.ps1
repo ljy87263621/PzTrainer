@@ -20,7 +20,7 @@ foreach ($stage in @(@('VERT','vert'),@('FRAG','frag'))) {
     if (-not $body) { throw "Shared model composite shader missing: $($stage[0])" }
     [System.IO.File]::WriteAllText((Join-Path $buildRoot "pztrainer\player\visual\model_composite.$($stage[1])"), $body, (New-Object System.Text.UTF8Encoding($false)))
 }
-& (Join-Path $JdkRoot 'bin\javac.exe') --release 17 -encoding UTF-8 -cp (Join-Path $GameRoot 'projectzomboid.jar') -d $buildRoot (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\items\RecordedMediaItems.java')
+& (Join-Path $JdkRoot 'bin\javac.exe') --release 17 -encoding UTF-8 -cp (Join-Path $GameRoot 'projectzomboid.jar') -d $buildRoot (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\items\RecordedMediaItems.java') (Join-Path $repoRoot 'trainer\src\java\pztrainer\player\items\PreparedSpawnItems.java')
 if ($LASTEXITCODE -ne 0) { throw 'Recorded media helper compilation failed.' }
 & (Join-Path $JdkRoot 'bin\jar.exe') --update --file (Join-Path $repoRoot 'trainer\src\runtime\resources\pztrainer-player-overrides.jar') -C $buildRoot pztrainer/player/visual -C $buildRoot pztrainer/player/items
 if ($LASTEXITCODE -ne 0) { throw 'Viewpoint model chams packaging failed.' }

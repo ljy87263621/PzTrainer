@@ -54,30 +54,30 @@ inline Language DetectSystemLanguage() {
 
 inline const LocalizedText& TextFor(Language language) {
     static constexpr LocalizedText english{
-        L"Branch:", L"Release", L"Target:", L"Menu:", L"Current version",
-        L"- Release version 1.0.1 Stable", L"– Local game process detection",
+        L"Branch:", L"Beta", L"Target:", L"Menu:", L"Current version",
+        L"- Release version 1.0.1 beta1", L"– Local game process detection",
         L"– Automatic game launch", L"– Real-time launch status",
         L"– Feature menu hotkey: Insert", L"Load", L"The game will be launched automatically",
         L"Injection successful", L"Back", L"About",
         L"This software is completely free.\nIf you paid for it, you were scammed.",
         L"Language"};
     static constexpr LocalizedText chinese{
-        L"分支：", L"正式版", L"目标：", L"菜单：", L"当前版本",
-        L"- 发布版本 1.0.1 Stable", L"– 本地游戏进程检测", L"– 自动启动游戏", L"– 启动状态实时反馈",
+        L"分支：", L"测试版", L"目标：", L"菜单：", L"当前版本",
+        L"- 发布版本 1.0.1 beta1", L"– 本地游戏进程检测", L"– 自动启动游戏", L"– 启动状态实时反馈",
         L"– 功能菜单快捷键：Insert", L"加载", L"游戏将自动启动", L"注入成功", L"返回", L"关于",
         L"此软件完全免费。\n如果你是购买的，说明你被骗了。",
         L"语言"};
     static constexpr LocalizedText russian{
-        L"Ветка:", L"Релиз", L"Цель:", L"Меню:", L"Текущая версия",
-        L"- Версия релиза 1.0.1 Stable", L"– Поиск локального процесса игры",
+        L"Ветка:", L"Бета", L"Цель:", L"Меню:", L"Текущая версия",
+        L"- Версия релиза 1.0.1 beta1", L"– Поиск локального процесса игры",
         L"– Автоматический запуск игры", L"– Статус запуска в реальном времени",
         L"– Горячая клавиша меню: Insert", L"Загрузить", L"Игра будет запущена автоматически",
         L"Инъекция выполнена", L"Назад", L"О программе",
         L"Это программное обеспечение полностью бесплатно.\nЕсли вы заплатили за него, вас обманули.",
         L"Язык"};
     static constexpr LocalizedText german{
-        L"Zweig:", L"Release", L"Ziel:", L"Menü:", L"Aktuelle Version",
-        L"- Release-Version 1.0.1 Stable", L"– Lokale Spielprozesserkennung",
+        L"Zweig:", L"Beta", L"Ziel:", L"Menü:", L"Aktuelle Version",
+        L"- Release-Version 1.0.1 beta1", L"– Lokale Spielprozesserkennung",
         L"– Automatischer Spielstart", L"– Startstatus in Echtzeit",
         L"– Menü-Hotkey: Insert", L"Laden", L"Das Spiel wird automatisch gestartet",
         L"Injection erfolgreich", L"Zurück", L"Info",

@@ -28,7 +28,10 @@ int wmain(int argc,wchar_t** argv) {
     for(const auto& entry:catalog) if(entry.full_type=="Moveables.location_business_office_generic_01_18") {
         found=true;assert(entry.category=="Furniture");assert(ItemCatalogMatchesSearch(entry,"隔板"));
         assert(entry.display_name.find("[E]")!=std::string::npos);
-        assert(entry.spawn_method_mask==ItemSpawnMethodMask(ItemSpawnMethod::Game));
+        assert(entry.spawn_method_mask==(ItemSpawnMethodMask(ItemSpawnMethod::Game) |
+            ItemSpawnMethodMask(ItemSpawnMethod::CorpsePayload) |
+            ItemSpawnMethodMask(ItemSpawnMethod::LightPayload) |
+            ItemSpawnMethodMask(ItemSpawnMethod::MediaPayload)));
     }
     assert(found && AppendMoveableItemCatalog(env,catalog,error)==0 && catalog.size()==3);
     auto load=env->GetStaticMethodID(fixture,"loadActualTiles","(Ljava/lang/String;)V");assert(load);

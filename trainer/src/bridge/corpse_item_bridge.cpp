@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "bridge/main_thread_invoker.hpp"
+#include "bridge/item_catalog_search.hpp"
+#include "bridge/recorded_media_catalog.hpp"
 
 namespace pztrainer::bridge {
 namespace {
@@ -223,10 +225,18 @@ bool QueueCurrentPayloadItem(JNIEnv* env) {
     const auto& item = g_pending.items[g_pending.item_index];
     jstring item_type = env->NewStringUTF(item.first.c_str());
     jobject quantity = BoxInteger(env, item.second);
-    const bool queued = item_type != nullptr && quantity != nullptr &&
+    bool queued = false;
+    if(NeedsPreparedItemCreation(item.first)) {
+        std::string error;
+        jclass helper=PreparedSpawnItemHelper(env,error);
+        queued=helper && item_type && quantity && !ClearException(env) && QueuePendingCall(
+            env,helper,"addToContainer",{g_pending.container,item_type,quantity},PendingStep::AddItems);
+    } else {
+        queued = item_type != nullptr && quantity != nullptr &&
         !ClearException(env) && QueuePendingCall(
             env, g_pending.container, "AddItems", {item_type, quantity},
             PendingStep::AddItems);
+    }
     DeleteLocalRef(env, quantity);
     DeleteLocalRef(env, item_type);
     return queued;
@@ -414,6 +424,16 @@ int QueueCorpsePayloadRequests(
     int total_quantity = 0;
     for (const auto& item : items) {
         if (item.first.empty()) continue;
+        if(NeedsPreparedItemCreation(item.first)) {
+            jclass helper=PreparedSpawnItemHelper(env,detail);
+            jmethodID add=helper?env->GetStaticMethodID(helper,"addToContainer",
+                "(Lzombie/inventory/ItemContainer;Ljava/lang/String;Ljava/lang/Integer;)Ljava/util/ArrayList;"):nullptr;
+            if(!add || ClearException(env)) {detail="准备物品接口不可用，请重启游戏并加载新版修改器";return 0;}
+            const int quantity=std::clamp(item.second,1,100);
+            normalized.emplace_back(item.first,quantity);
+            total_quantity+=quantity;
+            continue;
+        }
         jstring type = env->NewStringUTF(item.first.c_str());
         jobject sample = type == nullptr
             ? nullptr

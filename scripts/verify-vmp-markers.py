@@ -84,15 +84,16 @@ def verify_pe(path, expected):
             assert len(begins) == 1 and ends >= 1, f"Missing/overlapping binary boundaries at {start:x}: {begins}, ends={ends}"
     assert found == Counter({name: 1 for name in expected}), f"Compiled marker references mismatch: {found}"
 
-    helpers = []
+    helpers = {}
     for kind in pe.DIRECTORY_ENTRY_RESOURCE.entries:
         if kind.id == 10:
             for resource in kind.directory.entries:
-                if resource.id == 103:
+                if resource.id in (101, 103):
                     data = resource.directory.entries[0].data.struct
-                    helpers.append(pe.get_data(data.OffsetToData, data.Size))
-    assert helpers == [(ROOT / "trainer/src/runtime/resources/pztrainer-player-overrides.jar").read_bytes()], "Embedded helper differs from source resource"
-    print(f"PE: x64, /MT import check, {sum(found.values())} named Begin call sites with matching modes/End, exact embedded player helper")
+                    helpers[resource.id] = pe.get_data(data.OffsetToData, data.Size)
+    assert helpers == {101: (ROOT / "trainer/src/runtime/resources/pztrainer-lua-bridge.jar").read_bytes(),
+                       103: (ROOT / "trainer/src/runtime/resources/pztrainer-player-overrides.jar").read_bytes()}, "Embedded helpers differ from source resources"
+    print(f"PE: x64, /MT import check, {sum(found.values())} named Begin call sites with matching modes/End, exact embedded Lua/player helpers")
 
 
 if __name__ == "__main__":

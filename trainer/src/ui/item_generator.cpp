@@ -733,13 +733,12 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
     EndCard();
 
     std::vector<const ItemCatalogEntry*> filtered;
+    std::size_t unsupported_prepared_matches=0;
     filtered.reserve(catalog.size());
     for (const ItemCatalogEntry& item : catalog) {
-        if (MatchesMethodFilter(item) &&
-            (g_category == "全部" || item.category == g_category) &&
-            MatchesSearch(item)) {
-            filtered.push_back(&item);
-        }
+        if ((g_category != "全部" && item.category != g_category) || !MatchesSearch(item))continue;
+        if(MatchesMethodFilter(item))filtered.push_back(&item);
+        else if(g_search[0]!='\0' && bridge::NeedsPreparedItemCreation(item.full_type))++unsupported_prepared_matches;
     }
     if (!corpse_scheme && !g_selected_type.empty()) {
         const bool selected_visible = std::any_of(
@@ -755,6 +754,11 @@ void DrawItemGenerator(const bridge::FrameSnapshot& frame) {
         available_label, sizeof(available_label),
         T("可用物品 · %zu"), filtered.size());
     SectionLabel(available_label);
+    if(unsupported_prepared_matches>0) {
+        ImGui::PushStyleColor(ImGuiCol_Text,kMuted);
+        ImGui::TextWrapped(T("%zu 项家具或节目匹配搜索，但当前方案不支持。家具可用尸体／灯具／媒体载荷；节目可用尸体／媒体载荷。"),unsupported_prepared_matches);
+        ImGui::PopStyleColor();
+    }
     ImGui::Dummy(ImVec2(0.0f, U(3.0f)));
     ImGui::BeginChild("ItemCatalog", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None);
     if (filtered.empty()) {

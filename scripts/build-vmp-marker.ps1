@@ -1,6 +1,7 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')]
-    [string]$Version = '1.0.1',
+    [string]$Version = '1.0.1-beta.1',
+    [string]$DisplayName = '',
     [string]$VmProtectRoot = $env:VMP_ROOT
 )
 
@@ -34,13 +35,14 @@ try {
     if (-not (Test-Path -LiteralPath $dll)) { throw 'Build did not produce the input DLL.' }
     $manifest = [ordered]@{
         version = $Version
-        displayName = if ($Version -match '-') { "v$Version" } else { "v$Version Stable" }
+        displayName = if ($DisplayName) { $DisplayName } elseif ($Version -match '-') { "v$Version" } else { "v$Version Stable" }
         phase = 'marker-input-awaiting-user-vmprotect'
         sourceCommit = (& git rev-parse HEAD)
         sourceDirty = [bool](& git status --porcelain --untracked-files=normal)
         dll = 'input/pztrainer.dll'
         dllSha256 = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
         playerHelperSha256 = (Get-FileHash -LiteralPath 'trainer/src/runtime/resources/pztrainer-player-overrides.jar' -Algorithm SHA256).Hash.ToLowerInvariant()
+        luaBridgeSha256 = (Get-FileHash -LiteralPath 'trainer/src/runtime/resources/pztrainer-lua-bridge.jar' -Algorithm SHA256).Hash.ToLowerInvariant()
         expectedProcessedDll = 'protected/pztrainer.dll'
         launcherBuilt = $false
         releasePublished = $false
