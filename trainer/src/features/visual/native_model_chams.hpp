@@ -31,6 +31,9 @@ struct NativeModelChamsDiagnostics {
     std::size_t instanced_programs = 0;
     std::size_t vehicle_programs = 0;
     std::uint64_t vehicle_tinted_draw_calls = 0;
+    std::uint64_t world_frame_callbacks = 0;
+    std::uint64_t rendered_models = 0;
+    int queued_models = 0;
 };
 
 class NativeModelChams {

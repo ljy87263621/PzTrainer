@@ -1,5 +1,4 @@
 #include "bridge/jni_game_bridge.hpp"
-#include "bridge/model_outline_bridge.hpp"
 
 #include "vmprotect.hpp"
 
@@ -108,7 +107,6 @@ struct Bindings {
     jmethodID is_falling = nullptr;
     jmethodID is_knocked_down = nullptr;
     jmethodID is_fall_on_front = nullptr;
-    jmethodID set_alpha_and_target = nullptr;
     jmethodID x_to_screen = nullptr;
     jmethodID y_to_screen = nullptr;
     jmethodID get_core = nullptr;
@@ -146,7 +144,6 @@ struct Bindings {
 
 Bindings g_bindings;
 FrameSnapshot g_frame;
-ModelOutlineBridge g_model_outline_bridge;
 std::unordered_map<jint, float> g_zombie_max_health;
 std::unordered_map<jint, float> g_animal_max_health;
 constexpr std::array<const char*, kZombieBoneCount> kBoneNames{{
@@ -382,8 +379,6 @@ PZ_VMP_NOINLINE bool InitializeBindings(JNIEnv* env) {
             g_bindings.iso_game_character, "isKnockedDown", "()Z");
         g_bindings.character_is_invisible = env->GetMethodID(
             g_bindings.iso_game_character, "isInvisible", "()Z");
-        g_bindings.set_alpha_and_target = env->GetMethodID(
-            g_bindings.iso_game_character, "setAlphaAndTarget", "(F)V");
     }
     g_bindings.player_get_online_id = env->GetMethodID(
         g_bindings.iso_player, "getOnlineID", "()S");
@@ -847,8 +842,7 @@ void CollectPlayerObject(
         JNIEnv* env, jobject object, jobject local_player, jobject cell,
         float local_x, float local_y, float local_z,
         float local_forward_x, float local_forward_y, float camera_zoom,
-        float maximum_distance, bool collect_bones, bool model_chams_armed,
-        const ZombieModelVisualRequest& model_visual) {
+        float maximum_distance, bool collect_bones) {
     if (object == nullptr ||
         env->IsInstanceOf(object, g_bindings.iso_player) != JNI_TRUE ||
         env->IsSameObject(object, local_player) == JNI_TRUE) {
@@ -929,22 +923,6 @@ void CollectPlayerObject(
     if (collect_bones) {
         CollectCharacterBones(
             env, object, x, y, z, camera_zoom, snapshot);
-    }
-    if (model_chams_armed && model_visual.enabled) {
-        if (model_visual.force_visible &&
-            g_bindings.set_alpha_and_target != nullptr) {
-            env->CallVoidMethod(
-                object, g_bindings.set_alpha_and_target, 1.0f);
-        }
-        const ZombieModelVisualColor* color = &model_visual.normal;
-        if (snapshot.behind_wall && model_visual.behind_wall_enabled) {
-            color = &model_visual.behind_wall;
-        } else if (snapshot.in_view && model_visual.in_view_enabled) {
-            color = &model_visual.in_view;
-        }
-        g_model_outline_bridge.ApplyToObject(
-            env, object, color->red, color->green,
-            color->blue, color->alpha);
     }
     if (safety != nullptr) env->DeleteLocalRef(safety);
     g_frame.players.push_back(std::move(snapshot));
@@ -1074,15 +1052,9 @@ const FrameSnapshot& CollectFrameSnapshot(
         g_frame.local_screen_y = env->CallStaticFloatMethodA(
             g_bindings.iso_utils, g_bindings.y_to_screen, local_projection) / camera_zoom;
         g_frame.has_local_screen_position = !ClearException(env);
-        const bool model_bridge_ready = g_model_outline_bridge.Initialize(
-            env, g_bindings.class_loader, g_bindings.load_class);
-        const bool model_chams_armed = model_bridge_ready &&
-            g_model_outline_bridge.BeginFrame(
-                env, model_visual.enabled || player_model_visual.enabled ||
-                    animal_model_visual.enabled || vehicle_model_visual.enabled);
         if (model_visual.enabled || player_model_visual.enabled ||
             animal_model_visual.enabled || vehicle_model_visual.enabled) {
-            g_frame.model_chams_status = model_chams_armed ? 2 : 1;
+            g_frame.model_chams_status = 2; // Explicit capture owns its own readiness and frame hook.
         }
         const jint limited_count = std::min(count, static_cast<jint>(2048));
         g_frame.zombies.reserve(static_cast<std::size_t>(limited_count));
@@ -1155,22 +1127,6 @@ const FrameSnapshot& CollectFrameSnapshot(
                     if (collect_bones) {
                         CollectCharacterBones(
                             env, zombie, x, y, z, camera_zoom, snapshot);
-                    }
-                    if (model_chams_armed) {
-                        if (model_visual.force_visible &&
-                            g_bindings.set_alpha_and_target != nullptr) {
-                            env->CallVoidMethod(
-                                zombie, g_bindings.set_alpha_and_target, 1.0f);
-                        }
-                        const ZombieModelVisualColor* color = &model_visual.normal;
-                        if (snapshot.behind_wall && model_visual.behind_wall_enabled) {
-                            color = &model_visual.behind_wall;
-                        } else if (snapshot.in_view && model_visual.in_view_enabled) {
-                            color = &model_visual.in_view;
-                        }
-                        g_model_outline_bridge.ApplyToObject(
-                            env, zombie, color->red, color->green,
-                            color->blue, color->alpha);
                     }
                     g_frame.zombies.push_back(snapshot);
                 }
@@ -1255,25 +1211,6 @@ const FrameSnapshot& CollectFrameSnapshot(
                                 CollectCharacterBones(
                                     env, object, x, y, z, camera_zoom, snapshot);
                             }
-                            if (model_chams_armed && animal_model_visual.enabled) {
-                                if (animal_model_visual.force_visible &&
-                                    g_bindings.set_alpha_and_target != nullptr) {
-                                    env->CallVoidMethod(
-                                        object, g_bindings.set_alpha_and_target, 1.0f);
-                                }
-                                const ZombieModelVisualColor* color =
-                                    &animal_model_visual.normal;
-                                if (snapshot.behind_wall &&
-                                    animal_model_visual.behind_wall_enabled) {
-                                    color = &animal_model_visual.behind_wall;
-                                } else if (snapshot.in_view &&
-                                           animal_model_visual.in_view_enabled) {
-                                    color = &animal_model_visual.in_view;
-                                }
-                                g_model_outline_bridge.ApplyToObject(
-                                    env, object, color->red, color->green,
-                                    color->blue, color->alpha);
-                            }
                             g_frame.animals.push_back(std::move(snapshot));
                         }
                     }
@@ -1286,8 +1223,7 @@ const FrameSnapshot& CollectFrameSnapshot(
                     env, object, player, cell,
                     player_x, player_y, player_z,
                     player_forward_x, player_forward_y, camera_zoom,
-                    player_max_distance, collect_player_bones,
-                    model_chams_armed, player_model_visual);
+                    player_max_distance, collect_player_bones);
             }
             env->DeleteLocalRef(object);
         }
@@ -1327,8 +1263,7 @@ const FrameSnapshot& CollectFrameSnapshot(
                 env, online_player, player, cell,
                 player_x, player_y, player_z,
                 player_forward_x, player_forward_y, camera_zoom,
-                player_max_distance, collect_player_bones,
-                model_chams_armed, player_model_visual);
+                player_max_distance, collect_player_bones);
             env->DeleteLocalRef(online_player);
         }
         if (online_player_iterator != nullptr) {
@@ -1429,20 +1364,6 @@ const FrameSnapshot& CollectFrameSnapshot(
                     env, cell, player_x, player_y, player_z,
                     player_forward_x, player_forward_y, x, y, z, snapshot);
                 if (!ClearException(env)) {
-                    if (model_chams_armed && vehicle_model_visual.enabled) {
-                        const ZombieModelVisualColor* color =
-                            &vehicle_model_visual.normal;
-                        if (snapshot.behind_wall &&
-                            vehicle_model_visual.behind_wall_enabled) {
-                            color = &vehicle_model_visual.behind_wall;
-                        } else if (snapshot.in_view &&
-                                   vehicle_model_visual.in_view_enabled) {
-                            color = &vehicle_model_visual.in_view;
-                        }
-                        g_model_outline_bridge.ApplyToObject(
-                            env, vehicle, color->red, color->green,
-                            color->blue, color->alpha);
-                    }
                     g_frame.vehicles.push_back(std::move(snapshot));
                 }
             }

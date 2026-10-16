@@ -1,5 +1,5 @@
 #include <jvmti.h>
-#include "bridge/main_thread_invoker.hpp"
+#include "features/visual/native_capture_frame_hook.hpp"
 #include "bridge/lua_ui_bridge.hpp"
 #include "runtime/lua_bridge_resource.hpp"
 #include "features/visual/model_owner_policy.hpp"
@@ -609,12 +609,14 @@ int ResolveTrackedEntityColorIndex(const DrawCommand& command,
 jclass g_owned_capture_helper=nullptr;
 jmethodID g_current_owner=nullptr;
 jfieldID g_owned_capture_error_field=nullptr;
+jfieldID g_owned_frame_count=nullptr,g_owned_rendered_count=nullptr,g_owned_queued_count=nullptr;
 std::string g_owned_capture_error;
-bridge::AsyncObjectMethodCall g_owned_capture_call;
+jmethodID g_publish_capture=nullptr,g_clear_capture=nullptr;
+bool g_owned_capture_ready=false;
 std::chrono::steady_clock::time_point g_next_owned_capture{};
 
 bool InitializeOwnedCapture(JNIEnv* env) {
-    if(g_owned_capture_helper)return true;
+    if(g_owned_capture_ready)return true;
     JavaVM* vm=nullptr; jvmtiEnv* tool=nullptr; std::string error;
     const auto jar=runtime::EnsurePlayerOverridesJar(error);
     if(jar.empty() || env->GetJavaVM(&vm)!=JNI_OK || vm->GetEnv(reinterpret_cast<void**>(&tool),JVMTI_VERSION_1_2)!=JNI_OK) {
@@ -626,9 +628,27 @@ bool InitializeOwnedCapture(JNIEnv* env) {
     if(!helper) {g_owned_capture_error=error;return false;}
     g_current_owner=env->GetStaticMethodID(helper,"currentIdentity","()I");
     g_owned_capture_error_field=env->GetStaticFieldID(helper,"error","Ljava/lang/String;");
-    if(!env->ExceptionCheck() && g_current_owner)g_owned_capture_helper=static_cast<jclass>(env->NewGlobalRef(helper));
-    if(env->ExceptionCheck())env->ExceptionClear(); env->DeleteLocalRef(helper);
-    return g_owned_capture_helper!=nullptr;
+    g_owned_frame_count=env->GetStaticFieldID(helper,"worldCallbacks","J");
+    g_owned_rendered_count=env->GetStaticFieldID(helper,"renderedModels","J");
+    g_owned_queued_count=env->GetStaticFieldID(helper,"queuedModels","I");
+    if(env->ExceptionCheck() || !g_current_owner || !g_owned_capture_error_field ||
+        !g_owned_frame_count || !g_owned_rendered_count || !g_owned_queued_count) {
+        if(env->ExceptionCheck())env->ExceptionClear();env->DeleteLocalRef(helper);
+        g_owned_capture_error="Native capture helper is outdated; restart the game with the current launcher";
+        return false;
+    }
+    if(!env->ExceptionCheck() && g_current_owner && !g_owned_capture_helper)g_owned_capture_helper=static_cast<jclass>(env->NewGlobalRef(helper));
+    if(env->ExceptionCheck())env->ExceptionClear();
+    g_publish_capture=env->GetStaticMethodID(helper,"publish","([I[I[F)V");
+    g_clear_capture=env->GetStaticMethodID(helper,"clearPublished","()V");
+    if(env->ExceptionCheck()) {
+        env->ExceptionClear();env->DeleteLocalRef(helper);
+        g_owned_capture_error="Native capture publish interface is missing; restart the game";return false;
+    }
+    g_owned_capture_ready=g_owned_capture_helper && g_publish_capture && g_clear_capture &&
+        native_capture_frame::Install(env,g_owned_capture_error);
+    env->DeleteLocalRef(helper);
+    return g_owned_capture_ready;
 }
 
 int CurrentCapturedOwner() {
@@ -641,15 +661,6 @@ int CurrentCapturedOwner() {
 
 void QueueOwnedCapture(const bridge::FrameSnapshot& frame,const std::array<bool,4>& enabled) {
     JNIEnv* env=bridge::GetCurrentJniEnvironment(); if(!env)return;
-    if(g_owned_capture_call.expression) {
-        jobject result=nullptr; std::string error;
-        const auto state=bridge::PollObjectMethodOnMainThread(env,g_owned_capture_call,std::chrono::seconds(2),&result,&error);
-        if(result)env->DeleteLocalRef(result);
-        if(state==bridge::AsyncObjectMethodState::Pending)return;
-        g_owned_capture_error=error;
-        if(state==bridge::AsyncObjectMethodState::TimedOut)g_owned_capture_error="Native capture main-thread queue timed out";
-        bridge::ResetObjectMethodCall(env,g_owned_capture_call);
-    }
     const auto now=std::chrono::steady_clock::now(); if(now<g_next_owned_capture)return;
     g_next_owned_capture=now+std::chrono::milliseconds(16);
     if(!InitializeOwnedCapture(env)) {g_next_owned_capture=now+std::chrono::seconds(2);return;}
@@ -657,7 +668,7 @@ void QueueOwnedCapture(const bridge::FrameSnapshot& frame,const std::array<bool,
         auto detail=static_cast<jstring>(env->GetStaticObjectField(g_owned_capture_helper,g_owned_capture_error_field));
         if(detail && !env->ExceptionCheck()) {
             const char* text=env->GetStringUTFChars(detail,nullptr);
-            if(text) {if(*text)g_owned_capture_error=text;env->ReleaseStringUTFChars(detail,text);}
+            if(text) {g_owned_capture_error=text;env->ReleaseStringUTFChars(detail,text);}
         }
         if(detail)env->DeleteLocalRef(detail);
         if(env->ExceptionCheck())env->ExceptionClear();
@@ -673,7 +684,7 @@ void QueueOwnedCapture(const bridge::FrameSnapshot& frame,const std::array<bool,
         }
     };
     append(frame.zombies,0);append(frame.players,1);append(frame.animals,2);
-    if(owners.empty())return;
+    if(owners.empty()) {env->CallStaticVoidMethod(g_owned_capture_helper,g_clear_capture);return;}
     const auto size=static_cast<jsize>(owners.size());
     jintArray owner_array=env->NewIntArray(size),group_array=env->NewIntArray(size);
     jfloatArray marker_array=env->NewFloatArray(48); float markers[48]{};
@@ -681,8 +692,8 @@ void QueueOwnedCapture(const bridge::FrameSnapshot& frame,const std::array<bool,
     if(owner_array && group_array && marker_array) {
         env->SetIntArrayRegion(owner_array,0,size,owners.data());env->SetIntArrayRegion(group_array,0,size,groups.data());
         env->SetFloatArrayRegion(marker_array,0,48,markers);
-        if(!bridge::QueueObjectMethodOnMainThread(env,g_owned_capture_helper,"queue",{owner_array,group_array,marker_array},g_owned_capture_call))
-            g_owned_capture_error="Unable to queue native model capture on game thread";
+        env->CallStaticVoidMethod(g_owned_capture_helper,g_publish_capture,owner_array,group_array,marker_array);
+        if(env->ExceptionCheck())g_owned_capture_error="Unable to publish native model selection";
     }
     if(env->ExceptionCheck())env->ExceptionClear();
     if(owner_array)env->DeleteLocalRef(owner_array);if(group_array)env->DeleteLocalRef(group_array);if(marker_array)env->DeleteLocalRef(marker_array);
@@ -935,7 +946,9 @@ bool UpdateSolidTextureArray(const ImVec4& color) {
 
 void ReplayCapturedModel(const DrawCommand& command,const ImVec4& colour,
                          ZombieModelEffect effect,const NativeModelMaterial::Program* material) {
-    glViewport(command.viewport[0],command.viewport[1],command.viewport[2],command.viewport[3]);
+    // Begin() set the output mask's viewport. Captured MVP coordinates are NDC
+    // in the zoomed world FBO; replaying its larger viewport into the UI-sized
+    // mask would scale/clip both fill and rim a second time.
     g_use_program(material?material->id:command.program);
     BindCapturedVertexInput(command);
     g_active_texture(kTexture0+command.texture_unit); glBindTexture(GL_TEXTURE_2D,command.texture);
@@ -1262,6 +1275,11 @@ void NativeModelChams::SetCaptureEnabled(
     g_capture_vehicles = g_capture_vehicle_tint_enabled
         ? frame.vehicles : std::vector<bridge::VehicleSnapshot>{};
     if (!capture_enabled) {
+        JNIEnv* env=bridge::GetCurrentJniEnvironment();
+        if(env && g_owned_capture_helper && g_clear_capture) {
+            env->CallStaticVoidMethod(g_owned_capture_helper,g_clear_capture);
+            if(env->ExceptionCheck())env->ExceptionClear();
+        }
         std::lock_guard<std::mutex> command_lock(g_commands_mutex);
         g_commands.clear();
     }
@@ -1517,6 +1535,13 @@ NativeModelChamsDiagnostics NativeModelChams::Diagnostics() {
     diagnostics.instanced_programs = g_instanced_program_count;
     diagnostics.vehicle_programs = g_vehicle_program_count;
     diagnostics.vehicle_tinted_draw_calls = g_vehicle_tinted_draw_calls;
+    JNIEnv* env=bridge::GetCurrentJniEnvironment();
+    if(env && g_owned_capture_ready) {
+        diagnostics.world_frame_callbacks=env->GetStaticLongField(g_owned_capture_helper,g_owned_frame_count);
+        diagnostics.rendered_models=env->GetStaticLongField(g_owned_capture_helper,g_owned_rendered_count);
+        diagnostics.queued_models=env->GetStaticIntField(g_owned_capture_helper,g_owned_queued_count);
+        if(env->ExceptionCheck())env->ExceptionClear();
+    }
     diagnostics.material_error = g_character_materials.error;
     if(!g_owned_capture_error.empty())diagnostics.material_error += " Capture: "+g_owned_capture_error;
     if(!g_model_outline.error.empty())diagnostics.material_error += " Edge: " + g_model_outline.error;

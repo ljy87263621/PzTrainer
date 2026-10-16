@@ -2,6 +2,12 @@
 
 Current Release x64 builds use the static MSVC runtime (`/MT`) in both Trainer and Launcher. They do not need separate `msvcp140.dll` or `vcruntime140*.dll` files. Rebuilding Trainer changes the protection input: process the newly built marker-enabled DLL in VMProtect again before embedding it in a protected Launcher. A marker-enabled DLL that has not been processed still imports `VMProtectSDK64.dll` and must not be distributed as a protected release.
 
+## v1.0.0-beta.9
+
+Moves native character capture into the active world frame, initializes/restores the per-model camera, removes legacy outline registry writes from snapshot collection, and keeps replay in the destination mask viewport when the world buffer is scaled. Production JNI/JVMTI, MinHook and actual game shader pixel regressions cover both zombie/player ownership, independent fill/rim modes, local-player exclusion and three buffer scales. See [native world-frame effects](NATIVE_WORLD_FRAME_EFFECTS.md).
+
+Restart the game to replace the loaded helper/frame callback and discard old outline state. This Portable prerelease embeds the matching DLL/helper and uses the static CRT; no external JDK, VC runtime or VMProtect SDK is required by the recipient. Live save-game rendering and error-counter validation remain pending.
+
 ## v1.0.0-beta.8
 
 Repairs native per-player model lighting initialization and automatically routes ESP, model effects, Lua item ESP and aim projection according to the active ViewPoint renderer. Removes the manual projection switches and the separate VHS/CD page; named media remain in the ordinary Spawner. See [automatic projection and native capture](AUTO_PROJECTION_NATIVE_CAPTURE.md) for the reproduced exception, test scope and remaining live-game validation.

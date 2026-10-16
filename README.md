@@ -18,16 +18,16 @@ This repository is organized as one build unit:
 From the repository root, run:
 
 ```powershell
-.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.8'
+.\scripts\build-portable-release.ps1 -Version '1.0.0-beta.9'
 ```
 
 The script builds the trainer first, builds the launcher with that DLL embedded as a resource, writes SHA-256 sums, and produces a portable ZIP under `artifacts\`.
 
-The beta.8 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
+The beta.9 portable package uses the marker-disabled build with the static MSVC runtime. Its launcher embeds the matching DLL and Java helpers; end users do not need Visual Studio, a separate VC runtime, JDK, or the VMProtect SDK. A compatible Project Zomboid installation is required. Earlier beta.2 protection details remain documented in [docs/RELEASE.md](docs/RELEASE.md).
 
 The trainer automatically follows the active game renderer. Vanilla top-down view uses the isometric ESP/model-capture path; an enabled compatible ViewPoint renderer uses its current 3D camera for ESP and aiming. Manual projection/compatibility switches have been removed, and old saved flags no longer override camera selection. During 3D camera startup the overlay waits for a valid camera. The portable package embeds the bridge and Java helper but does not redistribute the third-party ViewPoint mod.
 
-Beta.8 fixes native capture of models whose per-player lighting data has not yet been initialized, and removes the separate VHS/CD page. Select specific VHS/CD programs through the ordinary item generator. See [automatic projection and native capture](docs/AUTO_PROJECTION_NATIVE_CAPTURE.md). The build also includes the confirmed silent-aim fix, furniture catalog entries, independent fill/rim controls, per-feature game visibility filters, and default configuration loading. See [media and silent aim](docs/RECORDED_MEDIA_SILENT_AIM.md), [visibility and default configs](docs/VISIBILITY_DEFAULT_CONFIG.md), and [model effects](docs/MODEL_COLOUR_FIXES.md).
+Beta.9 moves native model submissions inside the active world frame, establishes each model's camera, removes legacy outline/alpha writes from ESP collection, and corrects capture replay at scaled world framebuffer sizes. See [native world-frame effects](docs/NATIVE_WORLD_FRAME_EFFECTS.md) for the observed game errors, production capture tests and live-game validation limits. Automatic projection, named VHS/CD programs in the ordinary Spawner, independent fill/rim controls, per-feature visibility filters and default configuration loading remain available.
 
 ## Local SDK
 

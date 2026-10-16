@@ -774,7 +774,11 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
                     std::to_string(diagnostics.outline_programs) + " instancedPrograms=" +
                     std::to_string(diagnostics.instanced_programs) + " vehiclePrograms=" +
                     std::to_string(diagnostics.vehicle_programs) + " vehicleTintedDrawCalls=" +
-                    std::to_string(diagnostics.vehicle_tinted_draw_calls)+" error="+diagnostics.material_error);
+                    std::to_string(diagnostics.vehicle_tinted_draw_calls)+
+                    " worldCallbacks="+std::to_string(diagnostics.world_frame_callbacks)+
+                    " queuedModels="+std::to_string(diagnostics.queued_models)+
+                    " renderedModels="+std::to_string(diagnostics.rendered_models)+
+                    " error="+diagnostics.material_error);
                 g_logged_model_chams_diagnostics = true;
             }
         } else {

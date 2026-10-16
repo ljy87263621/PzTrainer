@@ -7,6 +7,9 @@ import zombie.characters.IsoPlayer;
 import zombie.characters.IsoZombie;
 import zombie.characters.animals.IsoAnimal;
 import zombie.core.SpriteRenderer;
+import zombie.core.opengl.CharacterModelCamera;
+import zombie.core.skinnedmodel.ModelCamera;
+import zombie.core.skinnedmodel.ModelCameraRenderData;
 import zombie.core.skinnedmodel.ModelManager;
 import zombie.core.skinnedmodel.model.ModelSlotRenderData;
 import zombie.core.textures.ColorInfo;
@@ -18,6 +21,27 @@ import zombie.iso.IsoWorld;
 public final class NativeModelCapture {
     private static final ThreadLocal<Integer> identity=ThreadLocal.withInitial(()->0);
     public static volatile String error="";
+    private static final class Selection {
+        final int[] identities,groups; final float[] markers; final long expires;
+        Selection(int[] ids,int[] types,float[] colours) {
+            identities=ids.clone();groups=types.clone();markers=colours.clone();expires=System.nanoTime()+500_000_000L;
+        }
+    }
+    private static volatile Selection requested;
+    public static volatile int queuedModels=0;
+    public static volatile long worldCallbacks=0,renderedModels=0;
+    public static void publish(int[] identities,int[] groups,float[] markers) {
+        if(identities.length!=groups.length || markers.length!=48)throw new IllegalArgumentException("Invalid capture selection");
+        requested=identities.length==0?null:new Selection(identities,groups,markers);
+    }
+    public static void clearPublished() {requested=null;queuedModels=0;}
+    public static void queuePublished() {
+        worldCallbacks++;
+        Selection selected=requested;
+        if(selected==null || System.nanoTime()>selected.expires) {queuedModels=0;return;}
+        try {queuedModels=queue(selected.identities,selected.groups,selected.markers);}
+        catch(RuntimeException|LinkageError failure) {error=failure.toString();}
+    }
     public static int currentIdentity() { return identity.get(); }
     public static void capture(int owner,Runnable draw) {
         int previous=identity.get(); identity.set(owner);
@@ -59,24 +83,41 @@ public final class NativeModelCapture {
         try {return enqueueReady(character,owner,group,markers);}
         catch(RuntimeException failure) {error=failure.toString();return false;}
     }
+    private static void withCamera(ModelCameraRenderData camera,Runnable draw) {
+        ModelCamera previous=ModelCamera.instance;
+        ModelCamera target=CharacterModelCamera.instance;
+        float x=target.x,y=target.y,z=target.z,angle=target.useAngle;
+        boolean worldIso=target.useWorldIso,inVehicle=target.inVehicle;
+        try {camera.render();draw.run();}
+        finally {
+            target.x=x;target.y=y;target.z=z;target.useAngle=angle;
+            target.useWorldIso=worldIso;target.inVehicle=inVehicle;ModelCamera.instance=previous;
+        }
+    }
     private static boolean enqueueReady(IsoGameCharacter character,int owner,int group,float[] markers) {
         if(character.legsSprite==null || character.legsSprite.modelSlot==null)return false;
         var slot=character.legsSprite.modelSlot;
         if(!ownsSlot(character,slot) || !character.hasActiveModel() || character.getAnimationPlayer()==null)return false;
         ModelSlotRenderData data=prepare(slot);
+        ModelCameraRenderData camera=ModelCameraRenderData.s_pool.alloc();
+        try {camera.init(CharacterModelCamera.instance,slot);}
+        catch(RuntimeException failure) {try {data.postRender();} finally {camera.postRender();}throw failure;}
         ColorInfo colour=new ColorInfo(markers[group*4],markers[group*4+1],markers[group*4+2],0);
         try {SpriteRenderer.instance.drawGeneric(new TextureDraw.GenericDrawer() {
             public void render() {
-                try {
+                try {withCamera(camera,()-> {
                     data.checkReady();
-                    if(data.canRender()) capture(owner,()->data.performRenderCharacterOutline(false,colour,false));
-                } catch(RuntimeException failure) { error=failure.toString(); }
+                    if(data.canRender()) {
+                        capture(owner,()->data.performRenderCharacterOutline(false,colour,false));
+                        renderedModels++;
+                    }
+                });} catch(RuntimeException|LinkageError failure) { error=failure.toString(); }
             }
-            public void postRender() { data.postRender(); }
-        });} catch(RuntimeException failure) {data.postRender();throw failure;}
+            public void postRender() {try {data.postRender();} finally {camera.postRender();}}
+        });} catch(RuntimeException failure) {try {data.postRender();} finally {camera.postRender();}throw failure;}
         return true;
     }
-    /** Called through MainThread's queue; pose/refcount initialization belongs to the game thread. */
+    /** Called inside the world-frame hook; pose/refcount initialization belongs to the game thread. */
     public static int queue(int[] identities,int[] groups,float[] markers) {
         if(identities.length!=groups.length || markers.length!=48)throw new IllegalArgumentException("Invalid capture selection");
         error="";

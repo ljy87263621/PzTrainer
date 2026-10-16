@@ -1,4 +1,7 @@
 import pztrainer.player.visual.NativeModelCapture;
+import zombie.core.skinnedmodel.ModelCamera;
+import zombie.core.skinnedmodel.ModelCameraRenderData;
+import zombie.core.opengl.CharacterModelCamera;
 public class NativeModelCaptureTest {
     // Headless character: only the animation lookup is replaced; render-data
     // construction, lighting allocation and reference release are real game code.
@@ -74,6 +77,26 @@ public class NativeModelCaptureTest {
             prepared.postRender();
             if(slot.renderRefCount!=0)throw new AssertionError("Successful capture leaked a model slot reference");
         }
+        actor.setX(12);actor.setY(34);actor.setZ(1);
+        var camera=ModelCameraRenderData.s_pool.alloc().init(CharacterModelCamera.instance,slot);
+        var scoped=NativeModelCapture.class.getDeclaredMethod("withCamera",zombie.core.skinnedmodel.ModelCameraRenderData.class,Runnable.class);
+        scoped.setAccessible(true);
+        var target=CharacterModelCamera.instance;
+        var previous=ModelCamera.instance;
+        float oldX=target.x,oldY=target.y,oldZ=target.z,oldAngle=target.useAngle;
+        boolean oldIso=target.useWorldIso,oldVehicle=target.inVehicle;
+        Runnable checkCamera=()-> {
+            if(ModelCamera.instance!=target || target.x!=12 || target.y!=34 || target.z!=1 || !target.useWorldIso)
+                throw new AssertionError("Explicit draw borrowed another character's model camera");
+        };
+        scoped.invoke(null,camera,checkCamera);
+        try {scoped.invoke(null,camera,(Runnable)()->{checkCamera.run();throw new IllegalStateException("camera fixture");});}
+        catch(java.lang.reflect.InvocationTargetException expected) {
+            if(!(expected.getCause() instanceof IllegalStateException))throw expected;
+        }
+        if(ModelCamera.instance!=previous || target.x!=oldX || target.y!=oldY || target.z!=oldZ || target.useAngle!=oldAngle || target.useWorldIso!=oldIso || target.inVehicle!=oldVehicle)
+            throw new AssertionError("Capture leaked camera state into later models");
+        camera.postRender();
         System.out.println("Native capture: explicit ownership, nesting and exception cleanup passed");
     }
 }
