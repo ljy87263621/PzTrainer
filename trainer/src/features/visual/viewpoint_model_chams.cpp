@@ -11,6 +11,7 @@
 #include "bridge/jni_game_bridge.hpp"
 #include "bridge/lua_ui_bridge.hpp"
 #include "runtime/lua_bridge_resource.hpp"
+#include "../../../../protection/vmprotect.hpp"
 
 namespace pztrainer::features::visual {
 namespace {
@@ -75,11 +76,12 @@ bool InstallFrameHook(JNIEnv* env,std::string& error) {
     env->DeleteLocalRef(renderer);return installed;
 }
 
-bool Initialize(JNIEnv* env) {
+PZ_VMP_NOINLINE bool Initialize(JNIEnv* env) {
     if (g_ready) return true;
     const auto now = std::chrono::steady_clock::now();
     if (now < g_retry) return false;
     g_retry = now + std::chrono::seconds(2);
+    PZ_VMP_BEGIN_MUTATION("PZ.DLL.ViewpointModelChamsBindings");
     JavaVM* vm = nullptr;
     jvmtiEnv* tool = nullptr;
     std::string error;
@@ -108,6 +110,7 @@ bool Initialize(JNIEnv* env) {
     env->DeleteLocalRef(helper);
     g_ready=g_helper && InstallFrameHook(env,error);
     if(!g_ready)g_status.message=error.empty()?"ViewPoint 模型帧回调校验失败":error;
+    PZ_VMP_END();
     return g_ready;
 }
 

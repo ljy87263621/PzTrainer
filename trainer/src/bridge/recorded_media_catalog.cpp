@@ -1,6 +1,7 @@
 #include "bridge/recorded_media_catalog.hpp"
 #include "bridge/lua_ui_bridge.hpp"
 #include "runtime/lua_bridge_resource.hpp"
+#include "../../../protection/vmprotect.hpp"
 #include <jvmti.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -19,8 +20,9 @@ std::string Text(JNIEnv* env,jstring value) {
     std::string result(chars); env->ReleaseStringUTFChars(value,chars); return result;
 }
 }
-jclass RecordedMediaItemHelper(JNIEnv* env,std::string& error) {
+PZ_VMP_NOINLINE jclass RecordedMediaItemHelper(JNIEnv* env,std::string& error) {
     if(g_helper) return g_helper;
+    PZ_VMP_BEGIN_MUTATION("PZ.DLL.RecordedMediaBindings");
     JavaVM* vm=nullptr; jvmtiEnv* tool=nullptr;
     if(!env || env->GetJavaVM(&vm)!=JNI_OK ||
         vm->GetEnv(reinterpret_cast<void**>(&tool),JVMTI_VERSION_1_2)!=JNI_OK) {
@@ -33,6 +35,7 @@ jclass RecordedMediaItemHelper(JNIEnv* env,std::string& error) {
     jclass local=LoadEmbeddedJavaClass(env,"pztrainer.player.items.RecordedMediaItems",error);
     if(local) { g_helper=static_cast<jclass>(env->NewGlobalRef(local));env->DeleteLocalRef(local); }
     if(Clear(env)) { g_helper=nullptr;error="无法绑定录像带创建接口"; }
+    PZ_VMP_END();
     return g_helper;
 }
 std::size_t AppendRecordedMediaCatalog(JNIEnv* env,std::vector<ItemCatalogEntry>& entries,std::string& error) {

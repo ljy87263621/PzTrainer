@@ -2,6 +2,7 @@
 #include "features/visual/native_capture_frame_hook.hpp"
 #include "bridge/lua_ui_bridge.hpp"
 #include "runtime/lua_bridge_resource.hpp"
+#include "../../../../protection/vmprotect.hpp"
 #include "features/visual/model_owner_policy.hpp"
 #include "features/visual/native_model_chams.hpp"
 
@@ -615,8 +616,9 @@ jmethodID g_publish_capture=nullptr,g_clear_capture=nullptr;
 bool g_owned_capture_ready=false;
 std::chrono::steady_clock::time_point g_next_owned_capture{};
 
-bool InitializeOwnedCapture(JNIEnv* env) {
+PZ_VMP_NOINLINE bool InitializeOwnedCapture(JNIEnv* env) {
     if(g_owned_capture_ready)return true;
+    PZ_VMP_BEGIN_MUTATION("PZ.DLL.NativeModelCaptureBindings");
     JavaVM* vm=nullptr; jvmtiEnv* tool=nullptr; std::string error;
     const auto jar=runtime::EnsurePlayerOverridesJar(error);
     if(jar.empty() || env->GetJavaVM(&vm)!=JNI_OK || vm->GetEnv(reinterpret_cast<void**>(&tool),JVMTI_VERSION_1_2)!=JNI_OK) {
@@ -648,6 +650,7 @@ bool InitializeOwnedCapture(JNIEnv* env) {
     g_owned_capture_ready=g_owned_capture_helper && g_publish_capture && g_clear_capture &&
         native_capture_frame::Install(env,g_owned_capture_error);
     env->DeleteLocalRef(helper);
+    PZ_VMP_END();
     return g_owned_capture_ready;
 }
 

@@ -2,6 +2,10 @@
 
 Current Release x64 builds use the static MSVC runtime (`/MT`) in both Trainer and Launcher. They do not need separate `msvcp140.dll` or `vcruntime140*.dll` files. Rebuilding Trainer changes the protection input: process the newly built marker-enabled DLL in VMProtect again before embedding it in a protected Launcher. A marker-enabled DLL that has not been processed still imports `VMProtectSDK64.dll` and must not be distributed as a protected release.
 
+## v1.0.1 Stable preparation
+
+The user confirmed the beta.9 native top-down model fix. `main` now represents Stable; `beta` is the default development line unless the user explicitly requests Stable promotion. This phase produces only the marker-enabled trainer input using `scripts/build-vmp-marker.ps1`, with isolated output/intermediates. No Stable tag/Release or rebuilt Launcher is produced. Return the VMProtect-processed DLL before Launcher embedding and portable packaging; see [VMP handoff](VMP_HANDOFF.md) for paths, marker decisions and the subsequent verification gate.
+
 ## v1.0.0-beta.9
 
 Moves native character capture into the active world frame, initializes/restores the per-model camera, removes legacy outline registry writes from snapshot collection, and keeps replay in the destination mask viewport when the world buffer is scaled. Production JNI/JVMTI, MinHook and actual game shader pixel regressions cover both zombie/player ownership, independent fill/rim modes, local-player exclusion and three buffer scales. See [native world-frame effects](NATIVE_WORLD_FRAME_EFFECTS.md).
@@ -38,7 +42,7 @@ Build from the repository root:
 .\scripts\build-portable-release.ps1 -Version '1.0.0-beta.2'
 ```
 
-The script requires Visual Studio C++ build tools, the Windows SDK, and the `v145` toolset. VMProtect markers are disabled by default. Set `VMP_ROOT` or pass `-VmProtectRoot` with `-EnableVmProtectMarkers` only when the separately installed SDK is available.
+The script requires Visual Studio C++ build tools, the Windows SDK, and the `v145` toolset. VMProtect markers are disabled for ordinary portable packaging. Use `scripts/build-vmp-marker.ps1 -Version '1.0.1' -VmProtectRoot '<SDK root>'` for a separate protected-build input; the portable script now rejects marker-enabled packaging.
 
 The repository script is the ordinary marker-disabled build path. For a protected release, build the marker-enabled trainer, process that DLL in VMProtect, stage the resulting protected DLL at `bin\\x64\\Release\\pztrainer.dll`, and rebuild the launcher with `/p:BuildProjectReferences=false` so the project reference cannot replace the protected image before resource compilation.
 

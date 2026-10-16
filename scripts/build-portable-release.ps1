@@ -1,6 +1,7 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')]
-    [string]$Version = '1.0.0-beta.9',
+    [Parameter(Mandatory=$true)]
+    [string]$Version,
     [ValidateSet('Release')]
     [string]$Configuration = 'Release',
     [ValidateSet('x64')]
@@ -10,6 +11,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($EnableVmProtectMarkers) {
+    throw 'Use build-vmp-marker.ps1 for marker input. Process it in VMProtect before separately embedding the processed DLL; this packager would embed an unprocessed SDK-dependent image.'
+}
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $trainerProject = Join-Path $repoRoot 'trainer\pztrainer.vcxproj'
 $launcherProject = Join-Path $repoRoot 'pztrainer_launcher.vcxproj'

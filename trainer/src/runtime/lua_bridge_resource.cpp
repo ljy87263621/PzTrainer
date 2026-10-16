@@ -140,8 +140,8 @@ bool ReadResource(
     return true;
 }
 
-std::filesystem::path EnsureBridgeJar(int resource_id, const wchar_t* filename, std::string& error) {
-    PZ_VMP_BEGIN_ULTRA("PZ.DLL.LuaBridgeCache");
+PZ_VMP_NOINLINE std::filesystem::path EnsureBridgeJar(int resource_id, const wchar_t* filename, std::string& error) {
+    PZ_VMP_BEGIN_MUTATION("PZ.DLL.LuaBridgeCache");
     const void* bytes = nullptr;
     DWORD size = 0;
     if (!ReadResource(g_resource_module, resource_id, bytes, size, error)) return {};

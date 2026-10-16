@@ -1,0 +1,22 @@
+{
+  "PZ.DLL.HookBootstrap": "MUTATION",
+  "PZ.DLL.LuaBridgeCache": "MUTATION",
+  "PZ.DLL.ItemAmmoBindings": "ULTRA",
+  "PZ.DLL.ItemCorpsePayloadBindings": "ULTRA",
+  "PZ.DLL.ItemExplosiveTrapBindings": "ULTRA",
+  "PZ.DLL.ItemCoreBindings": "MUTATION",
+  "PZ.DLL.ItemVariantTransform": "ULTRA",
+  "PZ.DLL.ItemSpawnDispatch": "MUTATION",
+  "PZ.DLL.ItemCorpsePayloadBatchDispatch": "MUTATION",
+  "PZ.DLL.JniCoreBindings": "MUTATION",
+  "PZ.DLL.ItemLightPayloadBindings": "ULTRA",
+  "PZ.DLL.ItemMagazineBindings": "ULTRA",
+  "PZ.DLL.MainThreadBridgeBindings": "ULTRA",
+  "PZ.DLL.ItemMediaPayloadBindings": "ULTRA",
+  "PZ.DLL.ItemPalletBindings": "ULTRA",
+  "PZ.DLL.ItemAnimalTrapBindings": "ULTRA",
+  "PZ.DLL.NativeModelCaptureBindings": "MUTATION",
+  "PZ.DLL.ViewpointModelChamsBindings": "MUTATION",
+  "PZ.DLL.RageFireBindings": "MUTATION",
+  "PZ.DLL.RecordedMediaBindings": "MUTATION"
+}

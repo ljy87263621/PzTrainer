@@ -8,6 +8,7 @@
 #include "bridge/lua_ui_bridge.hpp"
 #include "bridge/main_thread_invoker.hpp"
 #include "runtime/lua_bridge_resource.hpp"
+#include "../../../protection/vmprotect.hpp"
 
 namespace pztrainer::bridge {
 namespace {
@@ -70,11 +71,12 @@ void JNICALL Transform(jvmtiEnv* tool, JNIEnv* env, jclass type, jobject, const 
     env->PopLocalFrame(nullptr);
 }
 
-bool Initialize(JNIEnv* env, std::string& error) {
+PZ_VMP_NOINLINE bool Initialize(JNIEnv* env, std::string& error) {
     if (g_ready) return true;
     const auto now = std::chrono::steady_clock::now();
     if (now < g_retry) return false;
     g_retry = now + std::chrono::seconds(2);
+    PZ_VMP_BEGIN_MUTATION("PZ.DLL.RageFireBindings");
     error = "实际开火接口尚未就绪";
     if (!g_tool) {
         JavaVM* vm = nullptr;
@@ -124,6 +126,7 @@ bool Initialize(JNIEnv* env, std::string& error) {
     for (jclass type : classes) if (type) env->DeleteLocalRef(type);
     g_tool->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, nullptr);
     if (!g_ready) error = "当前游戏的实际开火方法校验失败";
+    PZ_VMP_END();
     return g_ready;
 }
 

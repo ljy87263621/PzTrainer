@@ -822,10 +822,9 @@ BOOL WINAPI HookedSwapBuffers(HDC device_context) {
     return g_original_swap_buffers(device_context);
 }
 
-DWORD WINAPI BootstrapThread(LPVOID) {
-    PZ_VMP_BEGIN_ULTRA("PZ.DLL.HookBootstrap");
+PZ_VMP_NOINLINE DWORD WINAPI BootstrapThread(LPVOID) {
+    PZ_VMP_BEGIN_MUTATION("PZ.DLL.HookBootstrap");
     if (!AcquireInstanceMarker()) {
-        PZ_VMP_END();
         return 0;
     }
     Log("DLL loaded; waiting for the OpenGL presentation function.");

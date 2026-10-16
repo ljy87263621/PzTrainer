@@ -410,7 +410,7 @@ bool SendPacket(JNIEnv* env, jobject packet, jfieldID packet_type_field) {
     return sent;
 }
 
-int SendVariantTransform(JNIEnv* env, jobject player, jobject inventory,
+PZ_VMP_NOINLINE int SendVariantTransform(JNIEnv* env, jobject player, jobject inventory,
                          jobject item_type, int quantity, std::string& detail) {
     PZ_VMP_BEGIN_ULTRA("PZ.DLL.ItemVariantTransform");
     bool invoked = false;
@@ -1026,7 +1026,7 @@ ItemSessionMode GetItemSessionMode() {
     return ItemSessionMode::Local;
 }
 
-const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
+PZ_VMP_NOINLINE const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
                                  ItemSpawnDestination destination,
                                  ItemSpawnMethod method) {
     PZ_VMP_BEGIN_MUTATION("PZ.DLL.ItemSpawnDispatch");
@@ -1291,7 +1291,7 @@ const ItemSpawnResult& SpawnItem(const std::string& full_type, int quantity,
     return g_last_result;
 }
 
-const ItemSpawnResult& SpawnCorpsePayloadBatch(
+PZ_VMP_NOINLINE const ItemSpawnResult& SpawnCorpsePayloadBatch(
     const std::vector<ItemSpawnBatchEntry>& items) {
     PZ_VMP_BEGIN_MUTATION("PZ.DLL.ItemCorpsePayloadBatchDispatch");
     g_last_result = ItemSpawnResult{};
