@@ -1,3 +1,10 @@
+# v1.0.1 Hotfix1 — Stable，未发布 GitHub Release
+
+- 将 v1.0.1 beta1 的家具／具名 VHS/CD 联机生成修复提升到 main；beta 保留为默认开发线。
+- Launcher 四种语言的版本名统一为 1.0.1 Hotfix1，分支标识改为 Stable／稳定版。
+- 复用用户已完成 VMP 处理并通过加载验证的 beta1 Trainer DLL，仅重建 Launcher；保留此前 Stable 和 Beta 成品。
+- 实际联机服务端仍未验收，生成路径及限制见 PREPARED_ITEM_ROUTES.md；本轮不创建 Release/tag。
+
 # v1.0.1 beta1 — Marker DLL 准备
 
 - 修正新增家具／具名 VHS/CD 的目录与执行能力标记：家具支持原生、尸体、灯具、媒体路径；录制节目支持原生、尸体、媒体路径。

@@ -1,6 +1,8 @@
-# v1.0.1 beta1：VMProtect 交接
+# v1.0.1 Hotfix1：VMProtect 交接
 
-当前阶段：修复家具与录制节目在联机载荷中的能力过滤和状态传递，生成 v1.0.1 beta1 Marker DLL。等待用户完成 VMProtect 处理，再构建／打包此版本 Launcher；本轮不创建 Release/tag。现有 v1.0.1 Stable 成品保留。
+当前阶段：将 v1.0.1 beta1 提升为 v1.0.1 Hotfix1 Stable。Trainer、helper 与 Lua 没有变化，复用用户已完成 VMP 处理的 beta1 DLL，仅构建更新版本名和 Stable 标识的 Launcher。本轮不创建 Release/tag，保留旧 Stable/Beta 成品。
+
+复用产物：`artifacts/pztrainer-v1.0.1-beta.1-vmp/protected/pztrainer.dll`，SHA-256：`7ec823eaa7d39f1f9a2bfe6b06fe1e4eee1fcdeef7f589118ea6dd5a273354b6`。该 DLL 已通过 Windows 加载、生产手动映射以及两份 helper 资源一致性检查。Hotfix1 的打包记录须同时注明 beta1 Marker 输入和 Hotfix1 Launcher 的源提交。
 
 ## 分支
 
@@ -11,17 +13,17 @@
 
 ## 输入和输出
 
-在仓库根目录运行（只构建 Trainer，静态 CRT `/MT`）：
+以下命令仅供以后重建 Trainer（需要重新 VMP），本次版本提升不执行。只构建 Trainer，静态 CRT `/MT`：
 
 ```powershell
-.\scripts\build-vmp-marker.ps1 -Version '1.0.1-beta.1' -DisplayName 'v1.0.1 beta1' -VmProtectRoot 'D:\Develope\VMProtect'
-python .\scripts\verify-vmp-markers.py .\artifacts\pztrainer-v1.0.1-beta.1-vmp\input\pztrainer.dll
+.\scripts\build-vmp-marker.ps1 -Version '1.0.1-hotfix.1' -DisplayName 'v1.0.1 Hotfix1' -VmProtectRoot 'D:\Develope\VMProtect'
+python .\scripts\verify-vmp-markers.py .\artifacts\pztrainer-v1.0.1-hotfix.1-vmp\input\pztrainer.dll
 ```
 
 校验工具在开发机使用系统 Python 的 `pefile`、`capstone`，不构成最终用户依赖。
 
-- VMProtect 输入：`artifacts/pztrainer-v1.0.1-beta.1-vmp/input/pztrainer.dll`。
-- 请将处理结果另存为：`artifacts/pztrainer-v1.0.1-beta.1-vmp/protected/pztrainer.dll`，保留原输入。
+- VMProtect 输入：`artifacts/pztrainer-v1.0.1-hotfix.1-vmp/input/pztrainer.dll`。
+- 请将处理结果另存为：`artifacts/pztrainer-v1.0.1-hotfix.1-vmp/protected/pztrainer.dll`，保留原输入。
 - `input-manifest.json` 记录源提交、输入 DLL/helper SHA-256 和构建阶段；不要把输入当成已保护成品。
 - 若使用旧 `.vmp` 项目，重新指定本次输入并刷新 Marker 列表，不要沿用上一 DLL 的绝对地址或手选函数范围。
 - 输入仍导入 `VMProtectSDK64.dll`，处理前不注入游戏、不作为便携成品发给用户。最终处理产物需要检查 SDK 导入已移除。
@@ -45,7 +47,7 @@ SDK 的 Begin/End 是供 VMProtect 分析的区域边界，Mutation/Ultra 预设
 
 ## 收到处理结果后
 
-本版沿用 Stable 的 20 个 Marker 区域，物品桥接初始化与生成调度继续受原有标记覆盖。验证器现在同时核对 Lua bridge 和 player helper 两份内嵌 JAR；新增的准备物品 helper 位于 player JAR，媒体／灯具代码位于 Lua bridge JAR。具体路由与验证范围见 [PREPARED_ITEM_ROUTES.md](PREPARED_ITEM_ROUTES.md)。保护后的运行验证需要用户完成 VMProtect 处理。
+本版沿用 Stable 的 20 个 Marker 区域，物品桥接初始化与生成调度继续受原有标记覆盖。验证器现在同时核对 Lua bridge 和 player helper 两份内嵌 JAR；新增的准备物品 helper 位于 player JAR，媒体／灯具代码位于 Lua bridge JAR。具体路由与验证范围见 [PREPARED_ITEM_ROUTES.md](PREPARED_ITEM_ROUTES.md)。beta1 的用户保护产物已通过隔离加载和资源验证；若重新构建 Trainer，则必须重新完成 VMProtect 处理及验证。
 
 1. 核对输入 manifest、处理后的 PE 和 SDK/CRT 导入，保留原输入与保护输出的各自哈希。
 2. 将处理后的 DLL 暂存到 Launcher 资源使用的位置；构建 Launcher 时必须使用 `/p:BuildProjectReferences=false /p:EnableVmProtectMarkers=false`，避免项目引用重编 Trainer 覆盖保护结果。

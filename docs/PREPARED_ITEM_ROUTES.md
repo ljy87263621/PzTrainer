@@ -1,6 +1,6 @@
-# v1.0.1 beta1：家具与录制节目的生成路径
+# v1.0.1 Hotfix1：家具与录制节目的生成路径
 
-本轮仅准备 VMP Marker DLL，等待用户完成 VMP 处理后再打包 Launcher。`main` 和现有 v1.0.1 Stable 成品保持原样，修复进入 `beta`。
+本修复由 v1.0.1 beta1 提升为 v1.0.1 Hotfix1 Stable，进入 `main`；`beta` 保留为默认开发线。复用已验证的 beta1 VMP DLL，仅更新 Launcher 版本及分支显示；保留旧成品。本轮不创建 Release/tag。
 
 ## 问题与修正
 
@@ -24,12 +24,14 @@
 
 ## 构建与验证
 
+以下 Marker 构建命令仅用于以后重建 Trainer；本次版本提升直接复用 beta1 的用户保护产物，无需再次 VMP。
+
 ```powershell
 .\scripts\test-prepared-item-routes.ps1 -GameRoot $env:PZ_GAME_ROOT -JdkRoot $env:PZ_JDK_ROOT
 .\scripts\test-recorded-media.ps1 -GameRoot $env:PZ_GAME_ROOT -JdkRoot $env:PZ_JDK_ROOT
 .\scripts\test-moveable-catalog.ps1 -GameRoot $env:PZ_GAME_ROOT -JdkRoot $env:PZ_JDK_ROOT
 .\scripts\build-prepared-item-bridge.ps1 -GameRoot $env:PZ_GAME_ROOT -JdkRoot $env:PZ_JDK_ROOT
-.\scripts\build-vmp-marker.ps1 -Version '1.0.1-beta.1' -DisplayName 'v1.0.1 beta1' -VmProtectRoot 'D:\Develope\VMProtect'
+.\scripts\build-vmp-marker.ps1 -Version '1.0.1-hotfix.1' -DisplayName 'v1.0.1 Hotfix1' -VmProtectRoot 'D:\Develope\VMProtect'
 ```
 
 回归覆盖全部 11 个生成方法的能力策略、真实目录、独立对象与数量、异常回滚、游戏原生物品序列化往返、节目数据、家具图块／朝向、实际 DeviceData 取出、分离 helper 类加载器，以及生产 C++ 尸体路由与静态 Java Expression 调用。UI 复用原有布局回归。

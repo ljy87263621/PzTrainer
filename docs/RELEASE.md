@@ -2,9 +2,11 @@
 
 Current Release x64 builds use the static MSVC runtime (`/MT`) in both Trainer and Launcher. They do not need separate `msvcp140.dll` or `vcruntime140*.dll` files. Rebuilding Trainer changes the protection input: process the newly built marker-enabled DLL in VMProtect again before embedding it in a protected Launcher. A marker-enabled DLL that has not been processed still imports `VMProtectSDK64.dll` and must not be distributed as a protected release.
 
-## v1.0.1 beta1 marker preparation
+## v1.0.1 Hotfix1 Stable promotion
 
-The current `beta` build repairs prepared furniture/recorded-media capabilities and state preservation in corpse/light/media routes. See [prepared item routes](PREPARED_ITEM_ROUTES.md). The display name is `v1.0.1 beta1`; artifact paths use `1.0.1-beta.1`. Generate only the Marker Trainer DLL, verify both embedded helper JARs and wait for the user's protected output before building Launcher. No Release/tag is created in this phase; existing Stable binaries remain intact.
+Promote v1.0.1 beta1 to `main`; retain `beta` as the default development line. The display name is `v1.0.1 Hotfix1`, channel Stable, artifact version `1.0.1-hotfix.1`. No Release/tag is created by this promotion.
+
+The Trainer, embedded helpers and Lua are unchanged from beta1. Reuse its user-processed DLL (`SHA-256: 7ec823eaa7d39f1f9a2bfe6b06fe1e4eee1fcdeef7f589118ea6dd5a273354b6`) and rebuild only Launcher with `BuildProjectReferences=false` and `EnableVmProtectMarkers=false`. Verify the embedded bytes, four localized version labels and portable checksums. Preserve prior Stable/Beta artifacts. Prepared-item engine/JNI tests are separate from live multiplayer server acceptance, which remains outstanding; see [prepared item routes](PREPARED_ITEM_ROUTES.md).
 
 ## v1.0.1 Stable preparation
 

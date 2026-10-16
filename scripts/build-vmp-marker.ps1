@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')]
-    [string]$Version = '1.0.1-beta.1',
+    [string]$Version = '1.0.1-hotfix.1',
     [string]$DisplayName = '',
     [string]$VmProtectRoot = $env:VMP_ROOT
 )
